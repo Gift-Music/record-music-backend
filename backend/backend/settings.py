@@ -99,7 +99,7 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3', # need to change 'djongo'
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'), # need to change name
+        'NAME': 'backend/db.sqlite3', # need to change name
     }
 }
 
@@ -155,6 +155,12 @@ REST_FRAMEWORK = {
         'rest_framework_jwt.authentication.JSONWebTokenAuthentication',
         'rest_framework.authentication.BasicAuthentication',
     ],
+}
+
+AUTH_USER_MODEL = 'accounts.User'
+
+REST_AUTH_SERIALIZERS = {
+    'USER_DETAILS_SERIALIZER' : 'accounts.serializers.UserSerializer',
 }
 
 JWT_AUTH = {

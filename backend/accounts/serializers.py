@@ -1,13 +1,16 @@
+from rest_auth.utils import import_callable
 from rest_framework import serializers
 from rest_framework_jwt.settings import api_settings
-from django.contrib.auth.models import User
+from django.conf import settings
+from .models import User
 
 
 class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('username', 'email')
+        fields = ('pk', 'username', 'email')
+        read_only_fields = ('email',)
 
 
 class UserSerializerWithToken(serializers.ModelSerializer):
@@ -34,4 +37,27 @@ class UserSerializerWithToken(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('token','username','first_name','last_name','email','password')
+        fields = ('token','username','email','password')
+
+
+from rest_auth.serializers import JWTSerializer
+
+
+class JWTSerializer(JWTSerializer):
+    """
+    Serializer for JWT authentication.
+    """
+    token = serializers.CharField()
+    user = serializers.SerializerMethodField()
+
+    def get_user(self, obj):
+        """
+        Required to allow using custom USER_DETAILS_SERIALIZER in
+        JWTSerializer. Defining it here to avoid circular imports
+        """
+        rest_auth_serializers = getattr(settings, 'REST_AUTH_SERIALIZERS', {})
+        JWTUserDetailsSerializer = import_callable(
+            rest_auth_serializers.get('USER_DETAILS_SERIALIZER', UserSerializer)
+        )
+        user_data = JWTUserDetailsSerializer(obj['user'], context=self.context).data
+        return user_data
