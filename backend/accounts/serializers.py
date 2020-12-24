@@ -43,7 +43,7 @@ class UserSerializerWithToken(serializers.ModelSerializer):
 from rest_auth.serializers import JWTSerializer
 
 
-class JWTSerializer(JWTSerializer):
+class CustomJWTSerializer(JWTSerializer):
     """
     Serializer for JWT authentication.
     """
