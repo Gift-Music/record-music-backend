@@ -60,6 +60,27 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name=_('Date joined'),
         default=timezone.now
     )
+    followers = models.ManyToManyField(
+        "self",
+        blank=True,
+        symmetrical=False,
+        related_name="recordmusic_followers",
+    )
+    following = models.ManyToManyField(
+        "self",
+        blank=True,
+        symmetrical=False,
+        related_name="recordmusic_following",
+    )
+    # friends = models.ManyToManyField(
+    #     "self",
+    #     blank=True,
+    #     symmetrical=True,
+    #     related_name="recordmusic_friends",
+    # )
+    profile_image = models.ImageField(
+        null=True,
+    )
 
     objects = UserManager()
 
@@ -80,8 +101,23 @@ class User(AbstractBaseUser, PermissionsMixin):
     def get_short_name(self):
         return self.username
 
+    def get_absolute_url(self):
+        return reversed('users:detail', kwrgs={'username':self.username})
+
     @property
     def is_staff(self):
         "Is the user a member of staff?"
         # Simplest possible answer: All superusers are staff
         return self.is_superuser
+
+    @property
+    def followers_count(self):
+        return self.followers.all().count()
+
+    @property
+    def following_count(self):
+        return self.following.all().count()
+
+    # @property
+    # def friends_count(self):
+    #     return self.friends.all().count()

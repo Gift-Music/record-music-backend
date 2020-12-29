@@ -9,8 +9,12 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('pk', 'username', 'email')
-        read_only_fields = ('email',)
+        fields = (
+            'id',
+            'profile_image',
+            'username',
+            'email',
+        )
 
 
 class UserSerializerWithToken(serializers.ModelSerializer):
@@ -37,13 +41,13 @@ class UserSerializerWithToken(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('token','username','email','password')
+        fields = ('token', 'username', 'email', 'password', 'profile_image')
 
 
 from rest_auth.serializers import JWTSerializer
 
 
-class CustomJWTSerializer(JWTSerializer):
+class CustomJWTSerializer(JWTSerializer): # for overriding super method
     """
     Serializer for JWT authentication.
     """
@@ -61,3 +65,18 @@ class CustomJWTSerializer(JWTSerializer):
         )
         user_data = JWTUserDetailsSerializer(obj['user'], context=self.context).data
         return user_data
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    followers_count = serializers.ReadOnlyField()
+    following_count = serializers.ReadOnlyField()
+    # friends_count = serializers.ReadOnlyField()
+
+    class Meta:
+        model = User
+        fields = (
+            'profile_image',
+            'username',
+            'followers_count',
+            'following_count',
+            # 'friends_count',
+        )
