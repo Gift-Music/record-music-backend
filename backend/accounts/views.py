@@ -118,7 +118,7 @@ class FollowUser(APIView):
 
 class UnFollowUser(APIView):
 
-    def delete(self, request, user_id, format=None):
+    def put(self, request, user_id, format=None):
 
         user = request.user
 
@@ -204,7 +204,7 @@ class MakeFriend(APIView):
 
 class DeleteFriend(APIView):
 
-    def delete(self, request, user_id, format=None):
+    def put(self, request, user_id, format=None):
 
         user = request.user
 
