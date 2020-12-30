@@ -62,17 +62,17 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     followers = models.ArrayReferenceField(
         to="self",
-        related_name="instagram_followers",
+        related_name="recordmusic_followers",
     )
 
     following = models.ArrayReferenceField(
         to="self",
-        related_name="instagram_following",
+        related_name="recordmusic_following",
     )
 
     friends = models.ArrayReferenceField(
         to="self",
-        related_name="instagram_friends",
+        related_name="recordmusic_friends",
     )
     profile_image = models.ImageField(
         null=True,
