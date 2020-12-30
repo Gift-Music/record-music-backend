@@ -106,6 +106,7 @@ class FollowUser(APIView):
 
         try:
             user_to_follow = User.objects.get(id=user_id)
+            if user == user_to_follow: return Response(status=status.HTTP_400_BAD_REQUEST) # 자기 자신을 팔로우할 수 없다.
         except User.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
@@ -123,6 +124,7 @@ class UnFollowUser(APIView):
 
         try:
             user_to_follow = User.objects.get(id=user_id)
+            if user == user_to_follow: return Response(status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
@@ -183,50 +185,52 @@ class UserFollowing(APIView):
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
-# class MakeFriend(APIView):
-#
-#     def post(self, request, user_id, format=None):
-#         user = request.user
-#
-#         try:
-#             user_to_friends = User.objects.get(id=user_id)
-#         except User.DoesNotExist:
-#             return Response(status=status.HTTP_404_NOT_FOUND)
-#
-#         user.friends.add(user_to_friends)
-#         user_to_friends.friends.add(user)
-#
-#         return Response(status=status.HTTP_200_OK)
-#
-#
-# class DeleteFriend(APIView):
-#
-#     def post(self, request, user_id, format=None):
-#
-#         user = request.user
-#
-#         try:
-#             user_to_friends = User.objects.get(id=user_id)
-#         except User.DoesNotExist:
-#             return Response(status=status.HTTP_404_NOT_FOUND)
-#
-#         user.friends.remove(user_to_friends)
-#         user_to_friends.friends.remove(user)
-#
-#         return Response(status=status.HTTP_200_OK)
-#
-#
-# class UserFriends(APIView):
-#
-#     def get(self, request, username, format=None):
-#
-#         try:
-#             user = User.objects.get(username=username)
-#         except User.DoesNotExist:
-#             return Response(status=status.HTTP_404_NOT_FOUND)
-#
-#         friends = user.friends.all()
-#
-#         serializer = UserSerializer(friends, many=True)
-#
-#         return Response(data=serializer.data, status=status.HTTP_200_OK)
+class MakeFriend(APIView):
+
+    def post(self, request, user_id, format=None):
+        user = request.user
+
+        try:
+            user_to_friends = User.objects.get(id=user_id)
+            if user == user_to_friends: return Response(status=status.HTTP_400_BAD_REQUEST) # 자기 자신에게 친구신청을 할 수 없다.
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        user.friends.add(user_to_friends)
+        user_to_friends.friends.add(user)
+
+        return Response(status=status.HTTP_200_OK)
+
+
+class DeleteFriend(APIView):
+
+    def post(self, request, user_id, format=None):
+
+        user = request.user
+
+        try:
+            user_to_friends = User.objects.get(id=user_id)
+            if user == user_to_friends: return Response(status=status.HTTP_400_BAD_REQUEST)
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        user.friends.remove(user_to_friends)
+        user_to_friends.friends.remove(user)
+
+        return Response(status=status.HTTP_200_OK)
+
+
+class UserFriends(APIView):
+
+    def get(self, request, username, format=None):
+
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        friends = user.friends.all()
+
+        serializer = UserSerializer(friends, many=True)
+
+        return Response(data=serializer.data, status=status.HTTP_200_OK)

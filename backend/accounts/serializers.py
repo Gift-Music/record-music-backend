@@ -69,7 +69,7 @@ class CustomJWTSerializer(JWTSerializer): # for overriding super method
 class UserProfileSerializer(serializers.ModelSerializer):
     followers_count = serializers.ReadOnlyField()
     following_count = serializers.ReadOnlyField()
-    # friends_count = serializers.ReadOnlyField()
+    friends_count = serializers.ReadOnlyField()
 
     class Meta:
         model = User
@@ -78,5 +78,5 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'username',
             'followers_count',
             'following_count',
-            # 'friends_count',
+            'friends_count',
         )

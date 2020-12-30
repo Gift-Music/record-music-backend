@@ -17,8 +17,8 @@ urlpatterns = [
     url(r'^(?P<user_id>\d+)/unfollow/$', views.UnFollowUser.as_view(), name='unfollow_user'),
     url(r'^(?P<username>\w+)/followers/$', views.UserFollowers.as_view(), name='user_followers'),
     url(r'^(?P<username>\w+)/following/$', views.UserFollowing.as_view(), name='user_following'), # 로그인 되어 있는 유저가 팔로우한 다른 유저목록
-    # url(r'^(?P<user_id>\d+)/makefriend/$', views.MakeFriend.as_view(), name='friend_user'),
-    # url(r'^(?P<user_id>\d+)/deletefriend/$', views.DeleteFriend.as_view(), name='unfriend_user'),
-    # url(r'^(?P<username>\w+)/friends/$', views.UserFriends.as_view(), name='user_friends'),
+    url(r'^(?P<user_id>\d+)/makefriend/$', views.MakeFriend.as_view(), name='friend_user'),
+    url(r'^(?P<user_id>\d+)/deletefriend/$', views.DeleteFriend.as_view(), name='unfriend_user'),
+    url(r'^(?P<username>\w+)/friends/$', views.UserFriends.as_view(), name='user_friends'),
     # url accounts/registration을 django-rest 라이브러리가 아니라 클라이언트로 연결시킬 예정
 ]

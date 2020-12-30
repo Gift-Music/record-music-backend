@@ -1,7 +1,7 @@
 from django.contrib.auth.models import (
     BaseUserManager, AbstractBaseUser, PermissionsMixin
 )
-from django.db import models
+from djongo import models # djongo 라이브러리의 model 폴더의 fields.py 1014번째 줄 부근에 있는 from_db_value()함수의 인자 context를 context=None으로 수정해야함.
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 
@@ -60,24 +60,20 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name=_('Date joined'),
         default=timezone.now
     )
-    followers = models.ManyToManyField(
-        "self",
-        blank=True,
-        symmetrical=False,
-        related_name="recordmusic_followers",
+    followers = models.ArrayReferenceField(
+        to="self",
+        related_name="instagram_followers",
     )
-    following = models.ManyToManyField(
-        "self",
-        blank=True,
-        symmetrical=False,
-        related_name="recordmusic_following",
+
+    following = models.ArrayReferenceField(
+        to="self",
+        related_name="instagram_following",
     )
-    # friends = models.ManyToManyField(
-    #     "self",
-    #     blank=True,
-    #     symmetrical=True,
-    #     related_name="recordmusic_friends",
-    # )
+
+    friends = models.ArrayReferenceField(
+        to="self",
+        related_name="instagram_friends",
+    )
     profile_image = models.ImageField(
         null=True,
     )
@@ -118,6 +114,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     def following_count(self):
         return self.following.all().count()
 
-    # @property
-    # def friends_count(self):
-    #     return self.friends.all().count()
+    @property
+    def friends_count(self):
+        return self.friends.all().count()
