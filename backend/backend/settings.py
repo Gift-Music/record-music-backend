@@ -44,20 +44,22 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    'accounts.apps.AccountsConfig',
-
+    # Third Party Apps
     'rest_framework',
     'rest_framework.authtoken',
 
     'rest_auth',
-
-    'django.contrib.sites',
-    'allauth',
-    'allauth.account',
     'rest_auth.registration',
 
+    'django.contrib.sites',
+
+    'allauth',
+    'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
+
+    # Local Apps
+    'accounts.apps.AccountsConfig',
 ]
 
 SITE_ID = 1
@@ -98,8 +100,11 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3', # need to change 'djongo'
-        'NAME': 'backend/db.sqlite3', # need to change name
+        'ENGINE': 'djongo',
+        'NAME': 'RecordMusic_DB',
+        'CLIENT': {
+           'host': 'localhost:27017',
+        }
     }
 }
 
@@ -171,22 +176,3 @@ JWT_AUTH = {
     'JWT_REFRESH_EXPIRATION_DELTA': datetime.timedelta(days=7),
 }
 
-# # Provider specific settings
-# SOCIALACCOUNT_PROVIDERS = {
-#     'google': {
-#         # For each OAuth based provider, either add a ``SocialApp``
-#         # (``socialaccount`` app) containing the required client
-#         # credentials, or list them here:
-#         'APP': {
-#             'client_id': '778918865045-m98cbij91l05ri5gjfu61oe00sbhljnr.apps.googleusercontent.com',
-#             'secret': 'OpVvRH_IBvlZ6c2lfnXnJGyy',
-#             'key': ''
-#         },
-#         "SCOPE": [
-#             "profile",
-#             "email",
-#         ]
-#     },
-# }
-#
-# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
