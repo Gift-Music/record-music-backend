@@ -18,12 +18,6 @@ class GoogleLogin(SocialLoginView):
     client_class = OAuth2Client
 
 
-@api_view(['GET'])
-def current_user(request):
-    serializer = UserSerializer(request.user)
-    return Response(serializer.data)
-
-
 class UserList(APIView):
 
     permission_classes = (permissions.AllowAny,)

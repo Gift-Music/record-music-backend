@@ -8,7 +8,6 @@ app_name = 'accounts'
 urlpatterns = [
     path('rest-auth/google/', views.GoogleLogin.as_view(), name='google_login'),
     path('', views.UserList.as_view()),
-    path('current', views.current_user),
 
     url(r'^search/$', views.Search.as_view(), name='search'),
     url(r'^explore/$', views.ExploreUsers.as_view(), name='explore_user'),

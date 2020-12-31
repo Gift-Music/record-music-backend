@@ -66,6 +66,7 @@ class CustomJWTSerializer(JWTSerializer): # for overriding super method
         user_data = JWTUserDetailsSerializer(obj['user'], context=self.context).data
         return user_data
 
+
 class UserProfileSerializer(serializers.ModelSerializer):
     followers_count = serializers.ReadOnlyField()
     following_count = serializers.ReadOnlyField()
