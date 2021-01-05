@@ -60,6 +60,7 @@ INSTALLED_APPS = [
 
     # Local Apps
     'accounts.apps.AccountsConfig',
+    'musicmaps.apps.MusicmapsConfig'
 ]
 
 SITE_ID = 1
