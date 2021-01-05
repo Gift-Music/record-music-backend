@@ -41,7 +41,8 @@ class MusicMaps(models.Model):
         PUBLIC = 0, 'Public'
         FOLLOW = 1, 'Follow'
         FRIENDS = 2, 'Friends'
-        FOF = 3, 'Friends of Friends'
+        FOF = 3, 'Friends of Friends',
+        PRIVATE = 4, 'Private'
 
     images = models.ArrayField(
         model_container=Image
