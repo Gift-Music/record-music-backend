@@ -1,6 +1,5 @@
 from django.utils import timezone
 from djongo import models
-# from djongo.models.indexes import TwoDSphereIndex
 from accounts.models import User
 
 
@@ -11,9 +10,16 @@ class Image(models.Model):
         abstract = True
 
 
+class IntegerValue(models.Model):
+    integer = models.IntegerField()
+
+    class Meta:
+        abstract = True
+
+
 class Location(models.Model):
     type = models.CharField(max_length=100)
-    coordinates = models.ArrayField()
+    coordinates = models.ArrayField(IntegerValue)
 
     class Meta:
         abstract = True
@@ -29,7 +35,10 @@ class Music(models.Model):
 
 class Comment(models.Model):
     content = models.TextField()
-    author = models.ForeignKey(User)
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE
+    )
     comments = models.ArrayReferenceField(
         to="self",
         on_delete=models.CASCADE
@@ -40,8 +49,7 @@ class MusicMaps(models.Model):
     class OpenRange(models.IntegerChoices):
         PUBLIC = 0, 'Public'
         FOLLOW = 1, 'Follow'
-        FRIENDS = 2, 'Friends'
-        FOF = 3, 'Friends of Friends',
+        FOLLOW_BACK = 2, 'Follow Back' # 맞팔로우
         PRIVATE = 4, 'Private'
 
     images = models.ArrayField(
@@ -60,10 +68,15 @@ class MusicMaps(models.Model):
         choices=OpenRange.choices
     )
     comments_on = models.BooleanField()
-    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='author'
+    )
     memorize_users = models.ArrayReferenceField(
         to=User,
-        on_delete=models.CASCADE
+        on_delete=models.CASCADE,
+        related_name='memorize_users'
     )
     location = models.EmbeddedField(
         model_container=Location
