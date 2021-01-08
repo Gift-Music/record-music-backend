@@ -190,7 +190,7 @@ Django + mongodb
 ### MusicMaps 가져오기
 
 1. 음악
-> GET /musicmpas/{music_name}
+> GET /musicmaps/{music_name}
 - request
  ``` json
     {
@@ -221,7 +221,7 @@ Django + mongodb
 - request
 ``` json
     {
-        "coordiantes" : (int, int),
+        "coordinates" : (int, int),
         "street_addr":string,
         "building_num":string,
         "user_id" : string
@@ -276,9 +276,9 @@ Django + mongodb
 - request
 ```json
     {
-        "user_id": stirng,
+        "user_id": string,
         "images": [object[Image]],
-        "content": stiring,
+        "content": string,
         "coordinates":(int, int),
         "street_addr":string,
         "build_num":string,
@@ -298,7 +298,7 @@ Django + mongodb
 - request
 ```json
     {
-        "user_id": stirng,
+        "user_id": string,
         "images": [object[Image]],
         "content": stiring,
         "coordinates":(int, int),
