@@ -1,14 +1,19 @@
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from django.contrib.auth import get_user_model
+from rest_auth.models import TokenModel
 from rest_auth.registration.views import SocialLoginView
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+from rest_auth.views import LoginView
 
-from rest_framework import permissions, status
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
+from rest_framework import permissions
 from rest_framework.views import APIView
+from rest_framework_jwt.serializers import VerifyJSONWebTokenSerializer
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework_jwt.views import JSONWebTokenAPIView, VerifyJSONWebToken
 
-from .serializers import UserSerializer, UserSerializerWithToken, UserProfileSerializer
+from .serializers import UserSerializerWithToken, UserProfileSerializer, CustomVerifyJSONWebTokenSerializer
 
 User = get_user_model()
 
@@ -18,16 +23,35 @@ class GoogleLogin(SocialLoginView):
     client_class = OAuth2Client
 
 
-class UserList(APIView):
+@api_view(['GET'])
+def current_user(request):
+    serializer = UserSerializerWithToken(request.user)
+    return Response(serializer.data)
 
-    permission_classes = (permissions.AllowAny,)
 
-    def post(self, request, format=None):
-        serializer = UserSerializerWithToken(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# @api_view(['GET'])
+# def validate_jwt_token(request):
+#
+#     try:
+#         token = request.META['HTTP_AUTHORIZATION']
+#         data = {'token': token.split()[1]}
+#         valid_data = VerifyJSONWebTokenSerializer().validate(data)
+#     except Exception as e:
+#         return Response(e)
+#
+#     return Response(status=status.HTTP_200_OK)
+
+
+# class UserList(APIView):
+#
+#     permission_classes = (permissions.AllowAny,)
+#
+#     def post(self, request, format=None):
+#         serializer = UserSerializerWithToken(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response(serializer.data, status=status.HTTP_201_CREATED)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserProfile(APIView):
@@ -35,16 +59,16 @@ class UserProfile(APIView):
     Check Current UserProfile
     """
 
-    def get_user(self, username):
+    def get_user(self, userid):
         try:
-            user = User.objects.get(username=username)
+            user = User.objects.get(userid=userid)
             return user
         except User.DoesNotExist:
             return None
 
-    def get(self, request, username, format=None):
+    def get(self, request, userid, format=None):
 
-        user = self.get_user(username)
+        user = self.get_user(userid)
 
         if user is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
@@ -53,17 +77,17 @@ class UserProfile(APIView):
 
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
-    def put(self, request, username, format=None):
+    def put(self, request, userid, format=None):
 
         req_user = request.user
 
-        user = self.get_user(username)
+        user = self.get_user(userid)
 
         if user is None:
 
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        elif user.username != req_user.username:
+        elif user.userid != req_user.userid:
 
             return Response(status=status.HTTP_401_UNAUTHORIZED)
 
@@ -88,18 +112,18 @@ class ExploreUsers(APIView):
     """
     def get(self, request, format=None):
         last_five = User.objects.all().order_by('-date_joined')[:5]
-        serializer = UserSerializer(last_five, many=True)
+        serializer = UserSerializerWithToken(last_five, many=True)
 
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
 class FollowUser(APIView):
 
-    def post(self, request, user_id, format=None):
+    def post(self, request, userid, format=None):
         user = request.user
 
         try:
-            user_to_follow = User.objects.get(id=user_id)
+            user_to_follow = User.objects.get(userid=userid)
             if user == user_to_follow: return Response(status=status.HTTP_400_BAD_REQUEST) # 자기 자신을 팔로우할 수 없다.
         except User.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
@@ -112,12 +136,12 @@ class FollowUser(APIView):
 
 class UnFollowUser(APIView):
 
-    def put(self, request, user_id, format=None):
+    def put(self, request, userid, format=None):
 
         user = request.user
 
         try:
-            user_to_follow = User.objects.get(id=user_id)
+            user_to_follow = User.objects.get(userid=userid)
             if user == user_to_follow: return Response(status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
@@ -128,17 +152,17 @@ class UnFollowUser(APIView):
         return Response(status=status.HTTP_200_OK)
 
 
-class Search(APIView):
+class Search(APIView): # 유저 한글 이름(현재 하단에 구현된 코드)과 유저 닉네임으로 검색하는 기능(추후 추가)
 
     def get(self, request, format=None):
 
-        username = request.query_params.get('username', None)
+        userid = request.query_params.get('userid', None)
 
-        if username is not None:
+        if userid is not None:
 
-            users = User.objects.filter(username__istartswith=username)
+            users = User.objects.filter(userid__istartswith=userid)
 
-            serializer = UserSerializer(users, many=True)
+            serializer = UserSerializerWithToken(users, many=True)
 
             return Response(data=serializer.data, status=status.HTTP_200_OK)
 
@@ -149,82 +173,104 @@ class Search(APIView):
 
 class UserFollowers(APIView):
 
-    def get(self, request, username, format=None):
+    def get(self, request, userid, format=None):
 
         try:
-            user = User.objects.get(username=username)
+            user = User.objects.get(userid=userid)
         except User.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         followers = user.followers.all()
 
-        serializer = UserSerializer(followers, many=True)
+        serializer = UserSerializerWithToken(followers, many=True)
 
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
 class UserFollowing(APIView):
 
-    def get(self, request, username, format=None):
+    def get(self, request, userid, format=None):
 
         try:
-            user = User.objects.get(username=username)
+            user = User.objects.get(userid=userid)
         except User.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         following = user.following.all()
 
-        serializer = UserSerializer(following, many=True)
+        serializer = UserSerializerWithToken(following, many=True)
 
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
-class MakeFriend(APIView):
+class UserTokenVerify(APIView):
+    """
+    Login with JWT token
+    """
+    permission_classes = (permissions.AllowAny,)
 
-    def post(self, request, user_id, format=None):
-        user = request.user
+    def post(self, request):
+        serializer_class = CustomVerifyJSONWebTokenSerializer
+        token, user = serializer_class.validate(serializer_class, request.data)
+
+        serializer = UserSerializerWithToken(user)
+        user_token = serializer.data.get('token')
+        data = {'token': user_token,
+                'user': {
+                    "profile_image": serializer.data.get('profile_image'),
+                    "user_id": serializer.data.get('userid'),
+                    "email": serializer.data.get('email')
+                    }
+                }
+
+        return Response(data=data, status=status.HTTP_200_OK)
+
+
+class UserLogin(APIView):
+    """
+    request:
+        "email" : string
+        "password" : string
+    """
+    permission_classes = (permissions.AllowAny,)
+
+    def post(self, request):
 
         try:
-            user_to_friends = User.objects.get(id=user_id)
-            if user == user_to_friends: return Response(status=status.HTTP_400_BAD_REQUEST) # 자기 자신에게 친구신청을 할 수 없다.
+            email = request.data.get('email')
+            password = request.data.get('password')
+
+            user = User.objects.get(email=email)
+            if not user.check_password(password):
+                return Response(status=status.HTTP_401_UNAUTHORIZED)
+
         except User.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        user.friends.add(user_to_friends)
-        user_to_friends.friends.add(user)
+        serializer = UserSerializerWithToken(user)
 
-        return Response(status=status.HTTP_200_OK)
+        user_token = serializer.data.get('token')
+        data = {'token': user_token,
+                'user': {
+                    "profile_image": serializer.data.get('profile_image'),
+                    "user_id": serializer.data.get('userid'),
+                    "email": serializer.data.get('email')
+                    }
+                }
 
-
-class DeleteFriend(APIView):
-
-    def put(self, request, user_id, format=None):
-
-        user = request.user
-
-        try:
-            user_to_friends = User.objects.get(id=user_id)
-            if user == user_to_friends: return Response(status=status.HTTP_400_BAD_REQUEST)
-        except User.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        user.friends.remove(user_to_friends)
-        user_to_friends.friends.remove(user)
-
-        return Response(status=status.HTTP_200_OK)
+        return Response(data=data, status=status.HTTP_200_OK)
 
 
-class UserFriends(APIView):
+class UserLogout(APIView):
+    pass
 
-    def get(self, request, username, format=None):
 
-        try:
-            user = User.objects.get(username=username)
-        except User.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        friends = user.friends.all()
-
-        serializer = UserSerializer(friends, many=True)
-
-        return Response(data=serializer.data, status=status.HTTP_200_OK)
+class UserRegister(APIView):
+    """
+    request:
+        "user_id" : string
+        "email" : string
+        "password" : string
+        "username" : string
+    """
+    pass
