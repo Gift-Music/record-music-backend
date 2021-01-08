@@ -1,17 +1,13 @@
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from django.contrib.auth import get_user_model
-from rest_auth.models import TokenModel
 from rest_auth.registration.views import SocialLoginView
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
-from rest_auth.views import LoginView
 
 from rest_framework import permissions
 from rest_framework.views import APIView
-from rest_framework_jwt.serializers import VerifyJSONWebTokenSerializer
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view
-from rest_framework_jwt.views import JSONWebTokenAPIView, VerifyJSONWebToken
 
 from .serializers import UserSerializerWithToken, UserProfileSerializer, CustomVerifyJSONWebTokenSerializer
 
@@ -27,31 +23,6 @@ class GoogleLogin(SocialLoginView):
 def current_user(request):
     serializer = UserSerializerWithToken(request.user)
     return Response(serializer.data)
-
-
-# @api_view(['GET'])
-# def validate_jwt_token(request):
-#
-#     try:
-#         token = request.META['HTTP_AUTHORIZATION']
-#         data = {'token': token.split()[1]}
-#         valid_data = VerifyJSONWebTokenSerializer().validate(data)
-#     except Exception as e:
-#         return Response(e)
-#
-#     return Response(status=status.HTTP_200_OK)
-
-
-# class UserList(APIView):
-#
-#     permission_classes = (permissions.AllowAny,)
-#
-#     def post(self, request, format=None):
-#         serializer = UserSerializerWithToken(data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response(serializer.data, status=status.HTTP_201_CREATED)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserProfile(APIView):
