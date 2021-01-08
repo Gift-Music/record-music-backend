@@ -6,6 +6,7 @@ Django + mongodb
 
 ### User login
 1. 일반 로그인(ID, PW)
+> POST /accounts/login
 - request
 ``` json
     {
@@ -26,6 +27,7 @@ Django + mongodb
 ```
 
 2. JWT verify
+> POST /accounts/verify
 - request
 ``` json
     {
@@ -43,7 +45,8 @@ Django + mongodb
         }
     }
 ```
-3. Refresh후 로그인
+3. Refresh
+> POST /accounts/refresh
 - request
 ``` json
     {
@@ -63,6 +66,7 @@ Django + mongodb
 ```
 
 ### User registration
+> POST /accounts/register
 - request
 ``` json
     {
@@ -81,6 +85,7 @@ Django + mongodb
 ```
 
 ### User 검색
+> GET /accounts/{user_id}
 - request
 ``` json
     {
@@ -102,12 +107,8 @@ Django + mongodb
 ```                          
 
 ### Follower 조회
-- request
-``` json
-    {
-        "user_id":string
-    }
-```
+> GET /accounts/{user_id}/followers
+
 - response
 ``` json
     {
@@ -122,12 +123,8 @@ Django + mongodb
 ```     
 
 ### Following 조회
-- request
-``` json
-    {
-        "user_id":string
-    }
-```
+> GET /account/{user_id}/following
+
 - response
 ``` json
     {
@@ -142,6 +139,8 @@ Django + mongodb
 ```
 
 ### User Follow
+> POST /accounts/{user_id}/follow
+
 > 신청
 - request
 ``` json
@@ -152,11 +151,13 @@ Django + mongodb
 - response
 ``` json
     {
-        None
+        "isSuccess": boolean
     }
 ```
 
 ### User UnFollow
+> POST /accounts/{user_id}/unfollow
+
 > 신청
 - request
 ``` json
@@ -167,17 +168,12 @@ Django + mongodb
 - response
 ``` json
     {
-        None
+        "isSuccess": boolean
     }
 ```
 
 ### User Profile 조회
-- request
-``` json
-    {
-        "user_id": string
-    }
-```
+>  GET /accounts/{user_id}/profile
 - response
 ``` json
     {
@@ -192,7 +188,9 @@ Django + mongodb
 
 
 ### MusicMaps 가져오기
+
 1. 음악
+> GET /musicmpas/{music_name}
 - request
  ``` json
     {
@@ -219,10 +217,13 @@ Django + mongodb
     }
 ```
 2. 장소
+> GET /musicmaps/list
 - request
 ``` json
     {
         "coordiantes" : (int, int),
+        "street_addr":string,
+        "building_num":string,
         "user_id" : string
     }
 ```
@@ -243,7 +244,8 @@ Django + mongodb
         ]
     }
 ```
-3. 사용자
+1. 사용자
+> GET /musicmaps/{user_id}
 - request
 ``` json
     {
@@ -270,10 +272,57 @@ Django + mongodb
 
 
 ### MusicMaps 게시
+> POST /musicmaps/{user_id}
+- request
+```json
+    {
+        "user_id": stirng,
+        "images": [object[Image]],
+        "content": stiring,
+        "coordinates":(int, int),
+        "street_addr":string,
+        "build_num":string,
+        "open_ragne":int,
+        "playlist":[object[Music]]
+    }
+```
+- response
+```json
+    {
+        "isSuccess": boolean
+    }
+```
 
 ### MusicMaps 수정
+> PUT /musicmaps/{user_id}/{musicmaps_id}
+- request
+```json
+    {
+        "user_id": stirng,
+        "images": [object[Image]],
+        "content": stiring,
+        "coordinates":(int, int),
+        "street_addr":string,
+        "build_num":string,
+        "open_ragne":int,
+        "playlist":[object[Music]]
+    }
+```
+- response
+```json
+    {
+        "isSuccess": boolean
+    }
+```
 
 ### MusicMaps 삭제
+> DELETE /musicmaps/{user_id}/{musicmaps_id}
+- response
+```json
+    {
+        "isSuccess": boolean
+    }
+```
 
 ### Push
-
+나중에 생각
