@@ -9,7 +9,7 @@ from django.utils.translation import ugettext_lazy as _
 class UserManager(BaseUserManager):
     use_in_migrations = True
 
-    def create_user(self, email, username, password=None):
+    def create_user(self, email, userid, password, username=None):
         """
         주어진 이메일, 닉네임, 비밀번호 등 개인정보로 User 인스턴스 생성
         """
@@ -18,6 +18,7 @@ class UserManager(BaseUserManager):
 
         user = self.model(
             email=self.normalize_email(email),
+            userid=userid,
             username=username,
         )
 
@@ -25,15 +26,16 @@ class UserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, username, password):
+    def create_superuser(self, email, userid, password, username=None):
         """
         주어진 이메일, 닉네임, 비밀번호 등 개인정보로 User 인스턴스 생성
         단, 최상위 사용자이므로 권한을 부여한다.
         """
         user = self.create_user(
-            email=email,
-            password=password,
+            email=self.normalize_email(email),
+            userid=userid,
             username=username,
+            password=password,
         )
 
         user.is_superuser = True
@@ -47,10 +49,15 @@ class User(AbstractBaseUser, PermissionsMixin):
         max_length=255,
         unique=True,
     )
-    username = models.CharField(
-        verbose_name=_('Username'),
+    userid = models.CharField( # 해당 유저의 닉네임
+        verbose_name=_('User Id'),
         max_length=30,
         unique=True
+    )
+    username = models.CharField(  # 해당 유저의 한글이름
+        verbose_name=_('Username'),
+        max_length=100,
+        unique=False,
     )
     is_active = models.BooleanField(
         verbose_name=_('Is active'),
@@ -70,17 +77,13 @@ class User(AbstractBaseUser, PermissionsMixin):
         related_name="recordmusic_following",
     )
 
-    friends = models.ArrayReferenceField(
-        to="self",
-        related_name="recordmusic_friends",
-    )
     profile_image = models.ImageField(
         null=True,
     )
 
     objects = UserManager()
 
-    USERNAME_FIELD = 'username'
+    USERNAME_FIELD = 'userid'
     REQUIRED_FIELDS = ['email']
 
     class Meta:
@@ -89,7 +92,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         ordering = ('username',)
 
     def __str__(self):
-        return self.username
+        return self.userid
 
     def get_full_name(self):
         return self.username
@@ -98,7 +101,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.username
 
     def get_absolute_url(self):
-        return reversed('users:detail', kwrgs={'username':self.username})
+        return reversed('users:detail', kwrgs={'userid':self.userid})
 
     @property
     def is_staff(self):
@@ -114,6 +117,3 @@ class User(AbstractBaseUser, PermissionsMixin):
     def following_count(self):
         return self.following.all().count()
 
-    @property
-    def friends_count(self):
-        return self.friends.all().count()

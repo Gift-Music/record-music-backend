@@ -15,11 +15,9 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include, re_path
-from django.conf.urls import url
 from django.conf import settings
 
 from rest_framework import permissions
-from rest_framework_jwt.views import obtain_jwt_token, refresh_jwt_token, verify_jwt_token
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
@@ -33,18 +31,10 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,)
 )
 
-
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    path('login/', obtain_jwt_token),
-    path('verify/', verify_jwt_token),
-    path('refresh/', refresh_jwt_token),
-
     path('accounts/', include('accounts.urls')),
-
-    url(r'^rest-auth/', include('rest_auth.urls')),
-    url(r'^rest-auth/registration/', include('rest_auth.registration.urls')),
 ]
 
 if settings.DEBUG:

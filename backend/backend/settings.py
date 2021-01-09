@@ -168,7 +168,7 @@ REST_FRAMEWORK = {
 AUTH_USER_MODEL = 'accounts.User'
 
 REST_AUTH_SERIALIZERS = {
-    'USER_DETAILS_SERIALIZER' : 'accounts.serializers.UserSerializer',
+    'USER_DETAILS_SERIALIZER' : 'accounts.serializers.UserSerializerWithToken',
 }
 
 JWT_AUTH = {

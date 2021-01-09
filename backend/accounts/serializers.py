@@ -1,20 +1,13 @@
-from rest_auth.utils import import_callable
+import jwt
+from rest_auth.registration.serializers import RegisterSerializer
+
 from rest_framework import serializers
+from rest_framework_jwt.serializers import VerifyJSONWebTokenSerializer, jwt_decode_handler
 from rest_framework_jwt.settings import api_settings
-from django.conf import settings
+from django.utils.translation import ugettext as _
 from .models import User
 
-
-class UserSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = User
-        fields = (
-            'id',
-            'profile_image',
-            'username',
-            'email',
-        )
+jwt_get_username_from_payload = api_settings.JWT_PAYLOAD_GET_USERNAME_HANDLER
 
 
 class UserSerializerWithToken(serializers.ModelSerializer):
@@ -31,52 +24,77 @@ class UserSerializerWithToken(serializers.ModelSerializer):
 
         return token
 
-    def create(self, validated_data):
-        password = validated_data.pop('password', None)
-        instance = self.Meta.model(**validated_data)
-        if password is not None:
-            instance.set_password(password)
-        instance.save()
-        return instance
-
     class Meta:
         model = User
-        fields = ('token', 'username', 'email', 'password', 'profile_image')
+        fields = ('token', 'userid', 'username', 'email', 'password', 'profile_image')
 
-
-from rest_auth.serializers import JWTSerializer
-
-
-class CustomJWTSerializer(JWTSerializer): # for overriding super method
-    """
-    Serializer for JWT authentication.
-    """
-    token = serializers.CharField()
-    user = serializers.SerializerMethodField()
-
-    def get_user(self, obj):
-        """
-        Required to allow using custom USER_DETAILS_SERIALIZER in
-        JWTSerializer. Defining it here to avoid circular imports
-        """
-        rest_auth_serializers = getattr(settings, 'REST_AUTH_SERIALIZERS', {})
-        JWTUserDetailsSerializer = import_callable(
-            rest_auth_serializers.get('USER_DETAILS_SERIALIZER', UserSerializer)
-        )
-        user_data = JWTUserDetailsSerializer(obj['user'], context=self.context).data
-        return user_data
 
 class UserProfileSerializer(serializers.ModelSerializer):
     followers_count = serializers.ReadOnlyField()
     following_count = serializers.ReadOnlyField()
-    friends_count = serializers.ReadOnlyField()
 
     class Meta:
         model = User
         fields = (
             'profile_image',
+            'userid',
             'username',
             'followers_count',
             'following_count',
-            'friends_count',
         )
+
+
+class CustomRegisterSerializer(RegisterSerializer):
+    userid = serializers.CharField(
+        max_length=30,
+        min_length=1,
+    )
+
+
+class CustomVerifyJSONWebTokenSerializer(VerifyJSONWebTokenSerializer):
+    """
+    Check the veracity of an access token.
+    """
+
+    def _check_payload_user(self, token):
+        # Check payload valid (based off of JSONWebTokenAuthentication,
+        # may want to refactor)
+        try:
+            payload = jwt_decode_handler(token)
+        except jwt.ExpiredSignature:
+            msg = _('Signature has expired.')
+            raise serializers.ValidationError(msg)
+        except jwt.DecodeError:
+            msg = _('Error decoding signature.')
+            raise serializers.ValidationError(msg)
+
+        return payload
+
+    def _check_user_id(self, payload):
+        userid = payload.get('userid')
+
+        if not userid:
+            msg = _('Invalid payload.')
+            raise serializers.ValidationError(msg)
+
+        try:
+            user = User.objects.get_by_natural_key(userid)
+        except User.DoesNotExist:
+            msg = _("User doesn't exist.")
+            raise serializers.ValidationError(msg)
+
+        if not user.is_active:
+            msg = _('User account is disabled.')
+            raise serializers.ValidationError(msg)
+
+        return user
+
+    def validate(self, attrs):
+        token = attrs['token']
+
+        payload = self._check_payload_user(self, token=token)
+        user = self._check_user_id(self, payload=payload)
+
+        # userprofile = UserSerializerWithToken(user)
+
+        return token, user
