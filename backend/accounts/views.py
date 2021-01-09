@@ -232,10 +232,6 @@ class UserLogin(APIView):
         return Response(data=data, status=status.HTTP_200_OK)
 
 
-class UserLogout(APIView):
-    pass
-
-
 class UserRegister(APIView):
     """
     request:

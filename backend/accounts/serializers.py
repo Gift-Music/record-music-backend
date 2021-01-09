@@ -1,4 +1,5 @@
 import jwt
+from rest_auth.registration.serializers import RegisterSerializer
 
 from rest_framework import serializers
 from rest_framework_jwt.serializers import VerifyJSONWebTokenSerializer, jwt_decode_handler
@@ -41,6 +42,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'followers_count',
             'following_count',
         )
+
+
+class CustomRegisterSerializer(RegisterSerializer):
+    userid = serializers.CharField(
+        max_length=30,
+        min_length=1,
+    )
 
 
 class CustomVerifyJSONWebTokenSerializer(VerifyJSONWebTokenSerializer):

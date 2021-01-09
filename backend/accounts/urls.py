@@ -1,5 +1,6 @@
 from django.conf.urls import include, url
 from django.urls import path
+from rest_auth.views import LogoutView
 
 from . import views
 from rest_framework_jwt.views import refresh_jwt_token, verify_jwt_token
@@ -11,8 +12,8 @@ urlpatterns = [
     path('current', views.current_user),
 
     path('login/', views.UserLogin.as_view()),
-    path('logout/', views.UserLogout.as_view()),
-    path('registration/', views.UserRegister.as_view()),
+    path('logout/', LogoutView.as_view()),
+    path('register/', views.UserRegister.as_view()),
 
     path('verify/', views.UserTokenVerify.as_view()),
     path('refresh/', refresh_jwt_token),

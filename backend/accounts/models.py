@@ -9,7 +9,7 @@ from django.utils.translation import ugettext_lazy as _
 class UserManager(BaseUserManager):
     use_in_migrations = True
 
-    def create_user(self, email, userid, username=None, password=None):
+    def create_user(self, email, userid, password, username=None):
         """
         주어진 이메일, 닉네임, 비밀번호 등 개인정보로 User 인스턴스 생성
         """
@@ -50,7 +50,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         unique=True,
     )
     userid = models.CharField( # 해당 유저의 닉네임
-        verbose_name=_('Userid'),
+        verbose_name=_('User Id'),
         max_length=30,
         unique=True
     )
