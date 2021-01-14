@@ -103,11 +103,8 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'djongo',
-        'NAME': 'RecordMusic_DB',
-        'CLIENT': {
-           'host': 'localhost:27017',
-        }
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
     }
 }
 
@@ -169,13 +166,14 @@ AUTH_USER_MODEL = 'accounts.User'
 
 REST_AUTH_SERIALIZERS = {
     'USER_DETAILS_SERIALIZER' : 'accounts.serializers.UserSerializerWithToken',
+    'REGISTER_SERIALIZER': 'accounts.serializers.CustomRegisterSerializer'
 }
 
 JWT_AUTH = {
     'JWT_SECRET_KEY': SECRET_KEY,
     'JWT_ALGORITHM': 'HS256',
     'JWT_EXPIRATION_DELTA': datetime.timedelta(seconds=300),
-    'JWT_ALLOW_REFRESH': False,
+    'JWT_ALLOW_REFRESH': True,
     'JWT_REFRESH_EXPIRATION_DELTA': datetime.timedelta(days=7),
 }
 
