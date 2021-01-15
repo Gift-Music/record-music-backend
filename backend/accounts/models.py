@@ -181,11 +181,10 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         # Simplest possible answer: All superusers are staff
         return self.is_superuser
 
-    @property
-    def followers_count(self):
-        return self.followers.all().count()
-
-    @property
-    def following_count(self):
-        return self.following.all().count()
-
+    # @property
+    # def followers_count(self):
+    #     return self.followers.all().count()
+    #
+    # @property
+    # def following_count(self):
+    #     return self.following.all().count()
