@@ -33,5 +33,4 @@ class PostDocumentsTest(TestCase):
     def test_delete_post(self):
         s = Post.search(index='musicmaps').query("match", content="아 코딩하기 시러어어ㅓㅓㅇ")
         response = s.delete()
-        print(response)
         self.assertGreater(response.deleted, 0)
