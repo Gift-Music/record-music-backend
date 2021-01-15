@@ -1,7 +1,7 @@
 from django.contrib.auth.models import (
     BaseUserManager, AbstractBaseUser, PermissionsMixin
 )
-from djongo import models # djongo 라이브러리의 model 폴더의 fields.py 1014번째 줄 부근에 있는 from_db_value()함수의 인자 context를 context=None으로 수정해야함.
+from django.db import models # djongo 라이브러리의 model 폴더의 fields.py 1014번째 줄 부근에 있는 from_db_value()함수의 인자 context를 context=None으로 수정해야함.
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 
@@ -67,15 +67,15 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name=_('Date joined'),
         default=timezone.now
     )
-    followers = models.ArrayReferenceField(
-        to="self",
-        related_name="recordmusic_followers",
-    )
-
-    following = models.ArrayReferenceField(
-        to="self",
-        related_name="recordmusic_following",
-    )
+    # followers = models.ArrayReferenceField(
+    #     to="self",
+    #     related_name="recordmusic_followers",
+    # )
+    #
+    # following = models.ArrayReferenceField(
+    #     to="self",
+    #     related_name="recordmusic_following",
+    # )
 
     profile_image = models.ImageField(
         null=True,
@@ -101,7 +101,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.username
 
     def get_absolute_url(self):
-        return reversed('users:detail', kwrgs={'userid':self.userid})
+        return reversed('users:detail', kwargs={'userid':self.userid})
 
     @property
     def is_staff(self):
@@ -109,11 +109,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         # Simplest possible answer: All superusers are staff
         return self.is_superuser
 
-    @property
-    def followers_count(self):
-        return self.followers.all().count()
-
-    @property
-    def following_count(self):
-        return self.following.all().count()
-
+    # @property
+    # def followers_count(self):
+    #     return self.followers.all().count()
+    #
+    # @property
+    # def following_count(self):
+    #     return self.following.all().count()
