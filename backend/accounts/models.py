@@ -46,6 +46,7 @@ class UserManager(BaseUserManager):
     def get_by_natural_key(self, userid):
         return self.get(**{self.model.USERNAME_FIELD: userid})
 
+
 class CustomPermissionsMixin(models.Model):
     is_superuser = models.BooleanField(
         _('superuser status'),
@@ -165,10 +166,7 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
     def __str__(self):
         return self.userid
 
-    def get_full_name(self):
-        return self.username
-
-    def get_short_name(self):
+    def get_name(self):
         return self.username
 
     def get_user_id(self):
@@ -183,11 +181,10 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         # Simplest possible answer: All superusers are staff
         return self.is_superuser
 
-    @property
-    def followers_count(self):
-        return self.followers.all().count()
-
-    @property
-    def following_count(self):
-        return self.following.all().count()
-
+    # @property
+    # def followers_count(self):
+    #     return self.followers.all().count()
+    #
+    # @property
+    # def following_count(self):
+    #     return self.following.all().count()
