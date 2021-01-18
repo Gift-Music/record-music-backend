@@ -103,6 +103,7 @@ ELASTICSEARCH_DSL = {
         'hosts': 'localhost:9200'
     },
 }
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
@@ -110,7 +111,14 @@ DATABASES = {
         'USER': 'django',
         'PASSWORD': 'django',
         'HOST': 'localhost',
-        'PORT': '',
+        'PORT': '5432',
+    }
+}
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379",
     }
 }
 
@@ -164,6 +172,8 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.BasicAuthentication',
         'rest_framework.authentication.TokenAuthentication',
     ],
+
+    'TEST_REQUEST_DEFAULT_FORMAT': 'json',
 }
 
 AUTH_USER_MODEL = 'accounts.User'

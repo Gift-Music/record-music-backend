@@ -1,15 +1,16 @@
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from django.contrib.auth import get_user_model
-from rest_auth.app_settings import create_token
+from django.core.exceptions import ObjectDoesNotExist
 from rest_auth.registration.views import SocialLoginView
+from django.utils.translation import ugettext_lazy as _
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+from django.core.cache import cache
 
 from rest_framework import permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from backend import settings
 from .serializers import UserSerializerWithToken, UserProfileSerializer, CustomRegisterSerializer, \
     CustomVerifyJSONWebTokenSerializer, custom_jwt_payload_handler, CustomRefreshJSONWebTokenSerializer
 
@@ -91,18 +92,20 @@ class FollowUser(APIView):
     """
 
     def post(self, request, userid, format=None):
+
         user = request.user
 
         try:
             user_to_follow = User.objects.get(userid=userid)
-            if user == user_to_follow: return Response(status=status.HTTP_400_BAD_REQUEST) # 자기 자신을 팔로우할 수 없다.
+            # cannot unfollow myself.
+            if user == user_to_follow: return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({"isSuccess": False}, status=status.HTTP_404_NOT_FOUND)
 
         user.following.add(user_to_follow)
         user_to_follow.followers.add(user)
 
-        return Response(status=status.HTTP_200_OK)
+        return Response({"isSuccess": True}, status=status.HTTP_200_OK)
 
 
 class UnFollowUser(APIView):
@@ -116,28 +119,32 @@ class UnFollowUser(APIView):
 
         try:
             user_to_follow = User.objects.get(userid=userid)
-            if user == user_to_follow: return Response(status=status.HTTP_400_BAD_REQUEST)
+            # cannot unfollow myself.
+            if user == user_to_follow: return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({"isSuccess": False}, status=status.HTTP_404_NOT_FOUND)
 
         user.following.remove(user_to_follow)
         user_to_follow.followers.remove(user)
 
-        return Response(status=status.HTTP_200_OK)
+        return Response({"isSuccess": True}, status=status.HTTP_200_OK)
 
 
-class Search(APIView): # 유저 한글 이름으로 검색하는 기능 추가할 예정.
+class Search(APIView):
     """
-    Explore users with that nickname.
+    Explore users with that nickname and kor name.
     """
 
-    def get(self, request, format=None):
+    def get(self, request, userid, format=None):
 
-        userid = request.data.get('userid', None)
+        username = request.data.get('username')
 
         if userid is not None:
 
-            users = User.objects.filter(userid__istartswith=userid)
+            if username is not None:
+                users = User.objects.filter(userid__istartswith=userid, username__istartswith=username)
+            else:
+                users = User.objects.filter(userid__istartswith=userid)
 
             serializer = UserProfileSerializer(users, many=True)
 
@@ -225,6 +232,7 @@ class UserTokenRefresh(APIView):
 
         serializer = UserSerializerWithToken(user)
         user_token = serializer.data.get('token')
+        cache.set(serializer.data.get('userid'), user_token, timeout=None)
         data = {'token': user_token,
                 'user': {
                     "profile_image": serializer.data.get('profile_image'),
@@ -260,6 +268,7 @@ class UserLogin(APIView):
         serializer = UserSerializerWithToken(user)
 
         user_token = serializer.data.get('token')
+        cache.set(serializer.data.get('userid'), user_token, timeout=None)
         data = {'token': user_token,
                 'user': {
                     "profile_image": serializer.data.get('profile_image'),
@@ -301,7 +310,6 @@ class UserRegister(APIView):
 
         serializer = CustomRegisterSerializer(data=request.data)
         user = self.perform_create(serializer)
-        # userdata = self.get_response_user_data(user)
 
         serializer = UserSerializerWithToken(user)
 
@@ -316,25 +324,36 @@ class UserRegister(APIView):
 
         return Response(data=data, status=status.HTTP_201_CREATED)
 
-    # def get_response_user_data(self, user):
-    #     # if allauth_settings.EMAIL_VERIFICATION == \
-    #     #         allauth_settings.EmailVerificationMethod.MANDATORY:
-    #     #     return {"detail": _("Verification e-mail sent.")}
-    #
-    #     if getattr(settings, 'REST_USE_JWT', False):
-    #         data = {
-    #             'user': user,
-    #             'token': self.token
-    #         }
-    #         return JWTSerializer(data).data
-    #     else:
-    #         return TokenSerializer(user.auth_token).data
-
     def perform_create(self, serializer):
         user = serializer.save(self.request)
-        if getattr(settings, 'REST_USE_JWT', False):
-            self.token = user_jwt_encode(user)
-        else:
-            create_token(self.token, user, serializer)
+        self.token = user_jwt_encode(user)
 
         return user
+
+
+class UserLogout(APIView):
+    """
+    request :
+    POST /accounts/logout/
+        "user_id" : string
+
+    response :
+    200 OK
+        {
+            "detail": "Successfully logged out."
+        }
+    """
+    permission_classes = (permissions.AllowAny,)
+
+    def post(self, request, userid):
+        try:
+            if cache.delete(User.objects.get(userid=userid)):
+                return Response({"detail": _("Successfully logged out.")}, status=status.HTTP_200_OK)
+
+            else:
+                return Response({"detail": _("User does not logged.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        except (AssertionError, ObjectDoesNotExist):
+            return Response({"detail": _("User does not logged.")}, status=status.HTTP_400_BAD_REQUEST)
+
+
