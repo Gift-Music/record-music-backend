@@ -79,7 +79,7 @@ class ExploreUsers(APIView):
     """
     Explore 5 new users to display profile photos, user nicknames, Korean names, and follow/followers.
     """
-    def get(self, request, format=None):
+    def get(self, format=None):
         last_five = User.objects.all().order_by('-date_joined')[:5]
         serializer = UserProfileSerializer(last_five, many=True)
 
@@ -334,7 +334,7 @@ class UserRegister(APIView):
 class UserLogout(APIView):
     """
     request :
-    POST /accounts/logout/
+    POST /accounts/{userid}/logout/
         "user_id" : string
 
     response :

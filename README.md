@@ -12,7 +12,8 @@ Django + mongodb
 영문법 표기에 맞추기 위해 API response에 등장하는 userid는 user_id로 표기함.
 **User계정 관련 response에 나오는 user_id 는 user의 pk가 아님!!**
 
-### User login
+### User login & logout
+
 1. 일반 로그인(ID, PW)
 > POST /accounts/login
 - request
@@ -53,6 +54,7 @@ Django + mongodb
         }
     }
 ```
+
 3. Refresh
 > POST /accounts/refresh
 - request
@@ -73,6 +75,14 @@ Django + mongodb
     }
 ```
 
+4. Logout
+> POST /accounts/{userid}/logout
+- response
+``` json
+    {
+        "detail": "Successfully logged out."
+    }
+```
 ### User registration
 > POST /accounts/register
 - request
@@ -92,6 +102,23 @@ Django + mongodb
     }
 ```
 
+### 최근 가입한 User 조회(5명)
+> GET /accounts/explore
+- response
+``` json
+    {
+        "user_list":[
+            {
+                "profile image" : object[Image],
+                "user_id" : string,
+                "username" : string,
+                "followers_count": int,
+                "following_count": int
+            }
+        ]
+    }
+```
+
 ### User 검색
 > GET /accounts/search/{userid}
 - request
@@ -108,7 +135,9 @@ Django + mongodb
             {
                 "profile image" : object[Image],
                 "user_id" : string,
-                "username" : string
+                "username" : string,
+                "followers_count": int,
+                "following_count": int
             }
         ]
     }
@@ -124,7 +153,9 @@ Django + mongodb
             {
                 "profile image" : object[Image],
                 "user_id" : string,
-                "username" : string
+                "username" : string,
+                "followers_count": int,
+                "following_count": int
             }
         ]
     }
@@ -140,7 +171,9 @@ Django + mongodb
             {
                 "profile image" : object[Image],
                 "user_id" : string,
-                "username" : string
+                "username" : string,
+                "followers_count": int,
+                "following_count": int
             }
         ]
     }
@@ -188,6 +221,8 @@ Django + mongodb
         "profile_image": object[Image],
         "user_id": string,
         "user_name":string,
+        "followers_count": int,
+        "following_count": int,
         "MusicMapsList": [object[MusicMaps]],
         "MusicMapsCount": int,
         "condition_message": string
