@@ -35,6 +35,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     path('accounts/', include('accounts.urls')),
+    path('musicmaps/', include('musicmaps.urls')),
 ]
 
 if settings.DEBUG:

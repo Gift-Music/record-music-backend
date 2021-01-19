@@ -1,5 +1,6 @@
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from django.contrib.auth import get_user_model
+from django.core.mail import EmailMessage
 from rest_auth.app_settings import create_token
 from rest_auth.registration.views import SocialLoginView
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client

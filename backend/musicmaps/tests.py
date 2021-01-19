@@ -2,12 +2,12 @@ from django.test import TestCase
 from .documents import Post
 
 import time
+import elasticsearch
 
 
 class PostDocumentsTest(TestCase):
     @classmethod
     def setUpTestData(cls):
-        Post.init()
         post = Post(
             open_range=1,
             author_id=1,
@@ -18,6 +18,7 @@ class PostDocumentsTest(TestCase):
             building_number=7
         )
         post.save()
+        time.sleep(1)
 
     def test_coordinates(self):
         s = Post.search(index='musicmaps')
@@ -25,18 +26,19 @@ class PostDocumentsTest(TestCase):
         self.assertEquals(response[0].coordinates, {"lat": 37.535397, "lon": 127.054437})
 
     def test_geo_query(self):
+        coordinates = {"lat": 37.535397, "lon": 127.054437}
         s = Post.search(index='musicmaps').filter({
             'geo_distance': {
                 "distance": "1km",
                 "coordinates":
-                    {"lat": 37.535397, "lon": 127.054437}
+                    {"lat": coordinates.get("lat"),
+                     "lon": coordinates.get("lon")}
             }
         })
         response = s.execute()
         self.assertEquals(response[0].coordinates, {"lat": 37.535397, "lon": 127.054437})
 
     def test_add_comment(self):
-        time.sleep(1)
         s = Post.search(index='musicmaps')
         response = s.execute()
         post_id = response[0].meta.id
@@ -46,7 +48,13 @@ class PostDocumentsTest(TestCase):
         self.assertEquals(post.comments[0].content, "이것이 댓글")
 
     def test_delete_post(self):
-        time.sleep(1)
+        def delete(search):
+            try:
+                return search.delete()
+            except elasticsearch.exceptions.ConflictError:
+                time.sleep(1)
+                return delete(search)
         s = Post.search(index='musicmaps').query('match', author_id=1)
-        response = s.delete()
+        response = delete(s)
         self.assertGreater(response.deleted, 0)
+
