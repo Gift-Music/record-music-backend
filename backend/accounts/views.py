@@ -1,10 +1,9 @@
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.mail import EmailMessage
 from rest_auth.registration.views import SocialLoginView
 from django.utils.translation import ugettext_lazy as _
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
-from django.core.cache import cache
 
 from rest_framework import permissions
 from rest_framework.views import APIView
@@ -144,7 +143,7 @@ class Search(APIView):
             if username is not None:
                 users = User.objects.filter(userid__istartswith=userid, username__istartswith=username)
             else:
-                users = User.objects.filter(userid__istartswith=userid)
+                users = User.objects.filter(userid__istartswith=userid) | User.objects.filter(username__istartswith=userid)
 
             serializer = UserProfileSerializer(users, many=True)
 
@@ -202,20 +201,23 @@ class UserTokenVerify(APIView):
     permission_classes = (permissions.AllowAny,)
 
     def post(self, request):
-        serializer_class = CustomVerifyJSONWebTokenSerializer
-        token, user = serializer_class.validate(serializer_class, request.data)
 
-        serializer = UserSerializerWithToken(user)
-        user_token = serializer.data.get('token')
-        data = {'token': user_token,
-                'user': {
-                    "profile_image": serializer.data.get('profile_image'),
-                    "user_id": serializer.data.get('userid'),
-                    "email": serializer.data.get('email')
+        try:
+            serializer_class = CustomVerifyJSONWebTokenSerializer
+            token, user = serializer_class.validate(serializer_class, request.data)
+
+            serializer = UserProfileSerializer(user)
+            data = {'token': token,
+                    'user': {
+                        "profile_image": serializer.data.get('profile_image'),
+                        "user_id": serializer.data.get('userid'),
+                        "email": serializer.data.get('email')
+                        }
                     }
-                }
+            return Response(data=data, status=status.HTTP_200_OK)
 
-        return Response(data=data, status=status.HTTP_200_OK)
+        except (AssertionError, TypeError):
+            return Response({"detail": _("No user found, cannot verify token.")}, status=status.HTTP_404_NOT_FOUND)
 
 
 class UserTokenRefresh(APIView):
@@ -232,7 +234,6 @@ class UserTokenRefresh(APIView):
 
         serializer = UserSerializerWithToken(user)
         user_token = serializer.data.get('token')
-        cache.set(serializer.data.get('userid'), user_token, timeout=None)
         data = {'token': user_token,
                 'user': {
                     "profile_image": serializer.data.get('profile_image'),
@@ -268,7 +269,6 @@ class UserLogin(APIView):
         serializer = UserSerializerWithToken(user)
 
         user_token = serializer.data.get('token')
-        cache.set(serializer.data.get('userid'), user_token, timeout=None)
         data = {'token': user_token,
                 'user': {
                     "profile_image": serializer.data.get('profile_image'),
@@ -314,11 +314,19 @@ class UserRegister(APIView):
         serializer = UserSerializerWithToken(user)
 
         user_token = serializer.data.get('token')
+        email = serializer.data['email']
+
+        if email is not None:
+            subject = 'RecordMusic 계정 인증'
+            message = '본 메세지는 test 용도로 발송되는 메세지 입니다.'
+            mail = EmailMessage(subject, message, to=[email])
+            mail.send()
+
         data = {'token': user_token,
                 'user': {
                     "profile_image": serializer.data.get('profile_image'),
                     "user_id": serializer.data.get('userid'),
-                    "email": serializer.data.get('email')
+                    "email": email
                     }
                 }
 
@@ -329,31 +337,3 @@ class UserRegister(APIView):
         self.token = user_jwt_encode(user)
 
         return user
-
-
-class UserLogout(APIView):
-    """
-    request :
-    POST /accounts/{userid}/logout/
-        "user_id" : string
-
-    response :
-    200 OK
-        {
-            "detail": "Successfully logged out."
-        }
-    """
-    permission_classes = (permissions.AllowAny,)
-
-    def post(self, request, userid):
-        try:
-            if cache.delete(User.objects.get(userid=userid)):
-                return Response({"detail": _("Successfully logged out.")}, status=status.HTTP_200_OK)
-
-            else:
-                return Response({"detail": _("User does not logged.")}, status=status.HTTP_400_BAD_REQUEST)
-
-        except (AssertionError, ObjectDoesNotExist):
-            return Response({"detail": _("User does not logged.")}, status=status.HTTP_400_BAD_REQUEST)
-
-

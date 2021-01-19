@@ -1,7 +1,7 @@
 from django.test import TestCase
 from rest_framework.test import APITestCase, APIClient
 from .views import *
-from django.core.cache import cache
+from django.core import mail
 
 User = get_user_model()
 
@@ -68,21 +68,12 @@ class ViewTest(APITestCase):
 
         self.assertEqual('test', User.objects.get(userid='test').userid)
 
-    def test_put_token_into_cache(self):
-        cache.set("test", "asdf1234@#$QWE", timeout=None)
-
-        self.assertEqual(cache.get("test"), "asdf1234@#$QWE")
-
-        cache.delete("test")
-
-        self.assertEqual(cache.get("test"), None)
-
-    def test_register_and_login_and_logout(self):
+    def test_register_and_login(self):
 
         register_data = {
-            'userid': 'test2',
+            'userid': 'test3',
             'username': 'leetest',
-            'email': 'test2@testmail.com',
+            'email': 'test3@testmail.com',
             'password': 'junhyeok'
         }
         register_response = self.client.post('/accounts/register/', register_data)
@@ -90,21 +81,12 @@ class ViewTest(APITestCase):
         self.assertEqual(register_response.status_code, status.HTTP_201_CREATED)
 
         login_data = {
-            'email': 'test2@testmail.com',
+            'email': 'test3@testmail.com',
             'password': 'junhyeok'
         }
         login_response = self.client.post('/accounts/login/', login_data)
 
         self.assertEqual(login_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(login_response.data.get('token'), cache.get(login_response.data.get('user').get('user_id')))
-        print("token in cache database: ", cache.get(login_response.data.get('user').get('user_id')))
-
-        logout_data = {
-            'userid': ' test2'
-        }
-        logout_response = self.client.post('/accounts/test2/logout/', logout_data)
-
-        self.assertEqual(logout_response.status_code, status.HTTP_200_OK)
 
     def test_search(self):
         client = APIClient()
@@ -124,7 +106,7 @@ class ViewTest(APITestCase):
         response = client.get('/accounts/explore/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data[0].get('userid'), User.objects.get(userid='test').userid)
+        self.assertEqual(response.data[1].get('userid'), User.objects.get(userid='test').userid)
 
     def test_profile(self):
         client = APIClient()
@@ -156,3 +138,17 @@ class ViewTest(APITestCase):
         self.assertEqual(True, response.data.get('isSuccess'))
         self.assertEqual(0, user.following_count)
         self.assertEqual(0, user2.followers_count)
+
+    def test_send_email(self):
+
+        mail.send_mail('Subject here',
+                  'Here is the message.',
+                  'from@example.com',
+                  ['to@example.com'],
+                  fail_silently=False)
+
+        assert len(mail.outbox) == 1, "Inbox is not empty."
+        assert mail.outbox[0].subject == 'Subject here'
+        assert mail.outbox[0].body == 'Here is the message.'
+        assert mail.outbox[0].from_email == 'from@example.com'
+        assert mail.outbox[0].to == ['to@example.com']

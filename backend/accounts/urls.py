@@ -20,5 +20,4 @@ urlpatterns = [
     path('<userid>/unfollow/', views.UnFollowUser.as_view(), name='unfollow_user'),
     path('<userid>/followers/', views.UserFollowers.as_view(), name='user_followers'),
     path('<userid>/following/', views.UserFollowing.as_view(), name='user_following'),
-    path('<userid>/logout/', views.UserLogout.as_view()),
 ]
