@@ -3,8 +3,17 @@ Django + mongodb
 
 
 ## API 문서
+*accounts model field 이름에 관한 주의 사항*
 
-### User login
+ * userid = user nickname에 해당함.
+
+ * user_id = account db에 저장되어 있는 해당 user의 pk.
+
+영문법 표기에 맞추기 위해 API response에 등장하는 userid는 user_id로 표기함.
+**User계정 관련 response에 나오는 user_id 는 user의 pk가 아님!!**
+
+### User login & logout
+
 1. 일반 로그인(ID, PW)
 > POST /accounts/login
 - request
@@ -45,6 +54,7 @@ Django + mongodb
         }
     }
 ```
+
 3. Refresh
 > POST /accounts/refresh
 - request
@@ -65,6 +75,14 @@ Django + mongodb
     }
 ```
 
+4. Logout
+> POST /accounts/{userid}/logout
+- response
+``` json
+    {
+        "detail": "Successfully logged out."
+    }
+```
 ### User registration
 > POST /accounts/register
 - request
@@ -84,8 +102,25 @@ Django + mongodb
     }
 ```
 
+### 최근 가입한 User 조회(5명)
+> GET /accounts/explore
+- response
+``` json
+    {
+        "user_list":[
+            {
+                "profile image" : object[Image],
+                "user_id" : string,
+                "username" : string,
+                "followers_count": int,
+                "following_count": int
+            }
+        ]
+    }
+```
+
 ### User 검색
-> GET /accounts/{user_id}
+> GET /accounts/search/{userid}
 - request
 ``` json
     {
@@ -100,14 +135,16 @@ Django + mongodb
             {
                 "profile image" : object[Image],
                 "user_id" : string,
-                "username" : string
+                "username" : string,
+                "followers_count": int,
+                "following_count": int
             }
         ]
     }
 ```                          
 
 ### Follower 조회
-> GET /accounts/{user_id}/followers
+> GET /accounts/{userid}/followers
 
 - response
 ``` json
@@ -116,14 +153,16 @@ Django + mongodb
             {
                 "profile image" : object[Image],
                 "user_id" : string,
-                "username" : string
+                "username" : string,
+                "followers_count": int,
+                "following_count": int
             }
         ]
     }
 ```     
 
 ### Following 조회
-> GET /account/{user_id}/following
+> GET /account/{userid}/following
 
 - response
 ``` json
@@ -132,14 +171,16 @@ Django + mongodb
             {
                 "profile image" : object[Image],
                 "user_id" : string,
-                "username" : string
+                "username" : string,
+                "followers_count": int,
+                "following_count": int
             }
         ]
     }
 ```
 
 ### User Follow
-> POST /accounts/{user_id}/follow
+> POST /accounts/{userid}/follow
 
 > 신청
 - request
@@ -156,7 +197,7 @@ Django + mongodb
 ```
 
 ### User UnFollow
-> POST /accounts/{user_id}/unfollow
+> PUT /accounts/{userid}/unfollow
 
 > 신청
 - request
@@ -173,13 +214,15 @@ Django + mongodb
 ```
 
 ### User Profile 조회
->  GET /accounts/{user_id}/profile
+>  GET /accounts/{userid}/profile
 - response
 ``` json
     {
         "profile_image": object[Image],
         "user_id": string,
         "user_name":string,
+        "followers_count": int,
+        "following_count": int,
         "MusicMapsList": [object[MusicMaps]],
         "MusicMapsCount": int,
         "condition_message": string
