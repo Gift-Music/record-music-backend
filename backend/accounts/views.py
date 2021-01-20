@@ -1,6 +1,10 @@
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from django.contrib.auth import get_user_model
+from django.contrib.auth.tokens import default_token_generator
+from django.contrib.sites.shortcuts import get_current_site
 from django.core.mail import EmailMessage
+from django.utils.encoding import force_text, force_bytes
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_auth.registration.views import SocialLoginView
 from django.utils.translation import ugettext_lazy as _
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
@@ -10,6 +14,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
+from . import authentication
 from .serializers import UserSerializerWithToken, UserProfileSerializer, CustomRegisterSerializer, \
     CustomVerifyJSONWebTokenSerializer, custom_jwt_payload_handler, CustomRefreshJSONWebTokenSerializer
 
@@ -25,6 +30,7 @@ class UserProfile(APIView):
     """
     Check Current UserProfile
     """
+    authentication_classes = (authentication.CustomJWTAuthentication,)
 
     def get_user(self, userid):
         try:
@@ -78,6 +84,8 @@ class ExploreUsers(APIView):
     """
     Explore 5 new users to display profile photos, user nicknames, Korean names, and follow/followers.
     """
+    authentication_classes = (authentication.CustomJWTAuthentication,)
+
     def get(self, format=None):
         last_five = User.objects.all().order_by('-date_joined')[:5]
         serializer = UserProfileSerializer(last_five, many=True)
@@ -89,6 +97,7 @@ class FollowUser(APIView):
     """
     Follow user whose nickname is <userid>.
     """
+    authentication_classes = (authentication.CustomJWTAuthentication,)
 
     def post(self, request, userid, format=None):
 
@@ -111,6 +120,7 @@ class UnFollowUser(APIView):
     """
     Unfollow user whose nickname is <userid>.
     """
+    authentication_classes = (authentication.CustomJWTAuthentication,)
 
     def put(self, request, userid, format=None):
 
@@ -133,6 +143,7 @@ class Search(APIView):
     """
     Explore users with that nickname and kor name.
     """
+    authentication_classes = (authentication.CustomJWTAuthentication,)
 
     def get(self, request, userid, format=None):
 
@@ -158,6 +169,7 @@ class UserFollowers(APIView):
     """
     Explore users that follow the user.
     """
+    authentication_classes = (authentication.CustomJWTAuthentication,)
 
     def get(self, request, userid, format=None):
 
@@ -177,6 +189,7 @@ class UserFollowing(APIView):
     """
     Explore the users that the user follows.
     """
+    authentication_classes = (authentication.CustomJWTAuthentication,)
 
     def get(self, request, userid, format=None):
 
@@ -310,30 +323,62 @@ class UserRegister(APIView):
 
         serializer = CustomRegisterSerializer(data=request.data)
         user = self.perform_create(serializer)
+        user.is_active = False
 
-        serializer = UserSerializerWithToken(user)
-
-        user_token = serializer.data.get('token')
-        email = serializer.data['email']
+        email = user.get_user_email()
 
         if email is not None:
-            subject = 'RecordMusic 계정 인증'
-            message = '본 메세지는 test 용도로 발송되는 메세지 입니다.'
+            subject = '[RecordMusic] 계정 인증'
+            current_site = get_current_site(request)
+            domain = current_site.domain
+            uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user=user)  # One-time token for account authentication
+            message = self.message(domain, uidb64, token)
             mail = EmailMessage(subject, message, to=[email])
             mail.send()
 
-        data = {'token': user_token,
-                'user': {
-                    "profile_image": serializer.data.get('profile_image'),
-                    "user_id": serializer.data.get('userid'),
-                    "email": email
-                    }
-                }
+            return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_201_CREATED)
 
-        return Response(data=data, status=status.HTTP_201_CREATED)
+        else:
+            Response(data={"detail": _("Email is not found.")}, status=status.HTTP_404_NOT_FOUND)
 
     def perform_create(self, serializer):
         user = serializer.save(self.request)
-        self.token = user_jwt_encode(user)
 
         return user
+
+    def message(self, domain, uidb64, token):
+        return f"아래 링크를 클릭하면 회원 가입 인증이 완료됩니다.\n\n" \
+               f"회원가입 완료 링크 : http://127.0.0.1:9080/accounts/register/activate/{uidb64}/{token}\n\n감사합니다."
+
+
+class UserActivate(APIView):
+
+    permission_classes = (permissions.AllowAny,)
+
+    def get(self, *args, **kwargs):
+        return self.post(*args, **kwargs)
+
+    def post(self, request, uidb64, token):
+        uid = force_text(urlsafe_base64_decode(uidb64))
+        user = User.objects.get(pk=uid)
+        if user is not None and default_token_generator.check_token(user=user, token=token):
+            user.is_active = True
+            user.save()
+            serializer = UserSerializerWithToken(user)
+
+            user_token = serializer.data.get('token')
+            email = serializer.data['email']
+
+            data = {'token': user_token,
+                    'user': {
+                        "profile_image": serializer.data.get('profile_image'),
+                        "user_id": serializer.data.get('userid'),
+                        "email": email
+                        }
+                    }
+
+            return Response(data=data, status=status.HTTP_200_OK)
+
+        else:
+            return Response(data={"detail": _("Wrong verification.")}, status=status.HTTP_400_BAD_REQUEST)

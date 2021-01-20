@@ -123,6 +123,7 @@ class CustomRegisterSerializer(serializers.ModelSerializer):
             username=request.data.get('username'),
         )
         user.set_password(request.data.get('password'))
+        user.is_active = False
         user.save()
         return user
 
@@ -132,7 +133,8 @@ class CustomRegisterSerializer(serializers.ModelSerializer):
             'userid',
             'username',
             'email',
-            'password'
+            'password',
+            'is_active'
         )
 
 
@@ -151,7 +153,7 @@ class BaseVerifyUserSerializer(serializers.ModelSerializer):
         userid = jwt_get_userid_from_payload(payload)
 
         if not userid:
-            msg = _('Invalid payload.')
+            msg = _('Invalid payload')
             raise serializers.ValidationError(msg)
 
         # Make sure user exists
@@ -232,4 +234,4 @@ class CustomRefreshJSONWebTokenSerializer(BaseVerifyUserSerializer):
         new_payload = custom_jwt_payload_handler(user)
         new_payload['orig_iat'] = orig_iat
 
-        return jwt_encode_handler(new_payload), user # return new token and user data
+        return jwt_encode_handler(new_payload), user  # return new token and user data

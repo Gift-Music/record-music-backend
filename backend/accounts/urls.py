@@ -20,4 +20,5 @@ urlpatterns = [
     path('<userid>/unfollow/', views.UnFollowUser.as_view(), name='unfollow_user'),
     path('<userid>/followers/', views.UserFollowers.as_view(), name='user_followers'),
     path('<userid>/following/', views.UserFollowing.as_view(), name='user_following'),
+    path('register/activate/<str:uidb64>/<str:token>', views.UserActivate.as_view(), name='activate_user'),
 ]

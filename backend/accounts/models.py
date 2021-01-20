@@ -129,7 +129,7 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
     )
     is_active = models.BooleanField(
         verbose_name=_('Is active'),
-        default=True
+        default=False
     )
     date_joined = models.DateTimeField(
         verbose_name=_('Date joined'),
@@ -171,6 +171,9 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
 
     def get_user_id(self):
         return self.userid
+
+    def get_user_email(self):
+        return self.email
 
     def get_absolute_url(self):
         return reversed('users:detail', kwargs={'userid': self.userid})

@@ -2,6 +2,7 @@ from django.test import TestCase
 from rest_framework.test import APITestCase, APIClient
 from .views import *
 from django.core import mail
+from django.contrib.auth.tokens import default_token_generator
 
 User = get_user_model()
 
@@ -67,6 +68,13 @@ class ViewTest(APITestCase):
     def test_isTestUserInDB(self):
 
         self.assertEqual('test', User.objects.get(userid='test').userid)
+
+    def test_change_isActive(self):
+
+        user = User.objects.get(userid='test')
+        self.assertEqual(False, user.is_active)
+        user.is_active = True
+        self.assertEqual(True, user.is_active)
 
     def test_register_and_login(self):
 
@@ -152,3 +160,19 @@ class ViewTest(APITestCase):
         assert mail.outbox[0].body == 'Here is the message.'
         assert mail.outbox[0].from_email == 'from@example.com'
         assert mail.outbox[0].to == ['to@example.com']
+
+    def test_should_make_uidb64_and_token(self):
+        user = User.objects.get(userid='test')
+        uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+        self.assertIsNotNone(uidb64)
+
+        token = default_token_generator.make_token(user)
+        self.assertIsNotNone(token)
+
+    def test_should_decode_uidb64_and_find_user_pk(self):
+        encoded_user = User.objects.get(userid='test')
+        uidb64 = urlsafe_base64_encode(force_bytes(encoded_user.pk))
+
+        uid = force_text(urlsafe_base64_decode(uidb64))
+        user = User.objects.get(pk=uid)
+        self.assertEqual(1, user.pk)
