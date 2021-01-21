@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.authentication import BaseAuthentication
 from rest_framework import exceptions
 
+from accounts.serializers import jwt_get_userid_from_payload
 from backend import settings
 
 
@@ -29,7 +30,7 @@ class CustomJWTAuthentication(BaseAuthentication):
         except IndexError:
             raise exceptions.AuthenticationFailed('Token prefix missing')
 
-        user = User.objects.filter(userid=payload['userid']).first()
+        user = User.objects.get_by_natural_key(user_id=jwt_get_userid_from_payload(payload))
         if user is None:
             raise exceptions.AuthenticationFailed('User not found')
 

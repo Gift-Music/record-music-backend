@@ -3,14 +3,6 @@ Django + mongodb
 
 
 ## API 문서
-*accounts model field 이름에 관한 주의 사항*
-
- * userid = user nickname에 해당함.
-
- * user_id = account db에 저장되어 있는 해당 user의 pk.
-
-영문법 표기에 맞추기 위해 API response에 등장하는 userid는 user_id로 표기함.
-**User계정 관련 response에 나오는 user_id 는 user의 pk가 아님!!**
 
 ### User login & logout
 
@@ -120,7 +112,7 @@ Django + mongodb
 ```
 
 ### User 검색
-> GET /accounts/search/{userid}
+> GET /accounts/search/{user_id}
 - request
 ``` json
     {
@@ -144,7 +136,7 @@ Django + mongodb
 ```                          
 
 ### Follower 조회
-> GET /accounts/{userid}/followers
+> GET /accounts/{user_id}/followers
 
 - response
 ``` json
@@ -162,7 +154,7 @@ Django + mongodb
 ```     
 
 ### Following 조회
-> GET /account/{userid}/following
+> GET /account/{user_id}/following
 
 - response
 ``` json
@@ -180,7 +172,7 @@ Django + mongodb
 ```
 
 ### User Follow
-> POST /accounts/{userid}/follow
+> POST /accounts/{user_id}/follow
 
 > 신청
 - request
@@ -197,7 +189,7 @@ Django + mongodb
 ```
 
 ### User UnFollow
-> PUT /accounts/{userid}/unfollow
+> PUT /accounts/{user_id}/unfollow
 
 > 신청
 - request
@@ -214,7 +206,7 @@ Django + mongodb
 ```
 
 ### User Profile 조회
->  GET /accounts/{userid}/profile
+>  GET /accounts/{user_id}/profile
 - response
 ``` json
     {
