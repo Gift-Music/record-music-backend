@@ -1,5 +1,5 @@
 # record-music-backend
-Django + mongodb
+Django + Elasticsearch + PostgreSQL
 
 
 ## API 문서
