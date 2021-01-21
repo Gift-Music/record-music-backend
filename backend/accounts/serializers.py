@@ -94,6 +94,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'profile_image',
             'userid',
             'username',
+            'email',
             'followers_count',
             'following_count',
         )

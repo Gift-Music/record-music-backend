@@ -116,7 +116,7 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         max_length=255,
         unique=True,
     )
-    userid = models.CharField( # 해당 유저의 닉네임
+    userid = models.CharField(  # 해당 유저의 닉네임
         verbose_name=_('User Id'),
         max_length=150,
         unique=True
@@ -173,18 +173,17 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         return self.userid
 
     def get_absolute_url(self):
-        return reversed('users:detail', kwargs={'userid':self.userid})
+        return reversed('users:detail', kwargs={'userid': self.userid})
 
     @property
     def is_staff(self):
-        "Is the user a member of staff?"
-        # Simplest possible answer: All superusers are staff
+        """Is the user a member of staff?"""
         return self.is_superuser
 
-    # @property
-    # def followers_count(self):
-    #     return self.followers.all().count()
-    #
-    # @property
-    # def following_count(self):
-    #     return self.following.all().count()
+    @property
+    def followers_count(self):
+        return self.followers.all().count()
+
+    @property
+    def following_count(self):
+        return self.following.all().count()
