@@ -409,5 +409,11 @@ class UserActivate(APIView):
 
             return Response(data=data, status=status.HTTP_200_OK)
 
+        elif default_token_generator.check_token(user=user, token=token) is False:
+            send_verification_email(request, user=user, email=user.email)
+
+            return Response(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
+                            status=status.HTTP_403_FORBIDDEN)
+
         else:
             return Response(data={"detail": _("Wrong verification.")}, status=status.HTTP_400_BAD_REQUEST)

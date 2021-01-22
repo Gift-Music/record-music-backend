@@ -1,4 +1,8 @@
+import time
+from datetime import date
+
 from django.test import TestCase
+from django.utils.http import base36_to_int
 from rest_framework.test import APITestCase, APIClient
 from .authentication import *
 
@@ -220,3 +224,19 @@ class ViewTest(APITestCase):
             access_token, settings.SECRET_KEY, algorithms=['HS256'])
 
         self.assertEqual('test', decode_payload.get('user_id'))
+
+    def test_email_conf_timeout(self):
+        user = User.objects.get(user_id='test')
+        token = default_token_generator.make_token(user=user)
+        ts_b36, _ = token.split("-")
+        ts = base36_to_int(ts_b36)
+
+        y, m, d = 2021, 1, 23
+        not_over_day = date(y, m, d)
+
+        self.assertEqual(False, (default_token_generator._num_days(not_over_day) - ts) > settings.PASSWORD_RESET_TIMEOUT_DAYS)
+
+        y, m, d = 2021, 1, 24
+        over_day = date(y, m, d)
+
+        self.assertEqual(True, (default_token_generator._num_days(over_day) - ts) > settings.PASSWORD_RESET_TIMEOUT_DAYS)

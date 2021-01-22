@@ -178,6 +178,8 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
+PASSWORD_RESET_TIMEOUT_DAYS = 1  # give valid email confirmation deadline 1 day.
+
 REST_AUTH_SERIALIZERS = {
     'USER_DETAILS_SERIALIZER': 'accounts.serializers.UserSerializerWithToken',
     'REGISTER_SERIALIZER': 'accounts.serializers.CustomRegisterSerializer'
