@@ -10,7 +10,7 @@ from django.utils.translation import ugettext_lazy as _
 class UserManager(BaseUserManager):
     use_in_migrations = True
 
-    def create_user(self, email, userid, password, username):
+    def create_user(self, email, user_id, password, username):
         """
         Create a User instance with personal information such as email, nickname, Korean name, and password given
         """
@@ -19,7 +19,7 @@ class UserManager(BaseUserManager):
 
         user = self.model(
             email=self.normalize_email(email),
-            userid=userid,
+            user_id=user_id,
             username=username,
         )
 
@@ -27,14 +27,14 @@ class UserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, userid, password, username):
+    def create_superuser(self, email, user_id, password, username):
         """
         Create a SuperUser instance with personal information such as email, nickname, Korean name, and password given
         Grant superuser privileges after account creation.
         """
         user = self.create_user(
             email=self.normalize_email(email),
-            userid=userid,
+            user_id=user_id,
             username=username,
             password=password,
         )
@@ -43,11 +43,12 @@ class UserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
-    def get_by_natural_key(self, userid):
-        return self.get(**{self.model.USERNAME_FIELD: userid})
+    def get_by_natural_key(self, user_id):
+        return self.get(**{self.model.USERNAME_FIELD: user_id})
 
 
 class CustomPermissionsMixin(models.Model):
+    user_pk = models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='pk')
     is_superuser = models.BooleanField(
         _('superuser status'),
         default=False,
@@ -116,7 +117,7 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         max_length=255,
         unique=True,
     )
-    userid = models.CharField( # 해당 유저의 닉네임
+    user_id = models.CharField(  # 해당 유저의 닉네임
         verbose_name=_('User Id'),
         max_length=150,
         unique=True
@@ -154,37 +155,39 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
 
     objects = UserManager()
 
-    USERNAME_FIELD = 'userid'
+    USERNAME_FIELD = 'user_id'
     EMAIL_FIELD = 'email'
     REQUIRED_FIELDS = ['username', 'email']
 
     class Meta:
         verbose_name = _('user')
         verbose_name_plural = _('users')
-        ordering = ('username',)
+        ordering = ('user_id',)
 
     def __str__(self):
-        return self.userid
+        return self.user_id
 
     def get_name(self):
         return self.username
 
     def get_user_id(self):
-        return self.userid
+        return self.user_id
+
+    def get_user_email(self):
+        return self.email
 
     def get_absolute_url(self):
-        return reversed('users:detail', kwargs={'userid':self.userid})
+        return reversed('users:detail', kwargs={'user_id': self.user_id})
 
     @property
     def is_staff(self):
-        "Is the user a member of staff?"
-        # Simplest possible answer: All superusers are staff
+        """Is the user a member of staff?"""
         return self.is_superuser
 
-    # @property
-    # def followers_count(self):
-    #     return self.followers.all().count()
-    #
-    # @property
-    # def following_count(self):
-    #     return self.following.all().count()
+    @property
+    def followers_count(self):
+        return self.followers.all().count()
+
+    @property
+    def following_count(self):
+        return self.following.all().count()

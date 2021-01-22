@@ -20,11 +20,11 @@ def get_userid(user):
     Return the user's nickname.
     """
     try:
-        userid = user.get_userid()
+        user_id = user.get_userid()
     except AttributeError:
-        userid = user.userid
+        user_id = user.user_id
 
-    return userid
+    return user_id
 
 
 def custom_jwt_payload_handler(user):
@@ -33,20 +33,20 @@ def custom_jwt_payload_handler(user):
     in the db to be encoded as jwt token.
     """
     userid_field = get_userid_field()
-    userid = get_userid(user)
-    user_pk = user.pk
+    user_id = get_userid(user)
+    user_pk = user.user_pk
 
     payload = { # user_id is a pk of user. Not userid field in User(accounts.User)
-        'user_id': user_pk,
-        'userid': userid,
+        'user_pk': user_pk,
+        'user_id': user_id,
         'exp': datetime.utcnow() + api_settings.JWT_EXPIRATION_DELTA
     }
     if hasattr(user, 'email'):
         payload['email'] = user.email
     if isinstance(user_pk, uuid.UUID):
-        payload['user_id'] = str(user_pk)
+        payload['user_pk'] = str(user_pk)
 
-    payload[userid_field] = userid
+    payload[userid_field] = user_id
 
     # Include original issued at time for a brand new token,
     # to allow token refresh
@@ -78,7 +78,7 @@ class UserSerializerWithToken(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('token', 'userid', 'username', 'email', 'password', 'profile_image')
+        fields = ('token', 'user_id', 'username', 'email', 'password', 'profile_image')
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -92,8 +92,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = (
             'profile_image',
-            'userid',
+            'user_id',
             'username',
+            'email',
             'followers_count',
             'following_count',
         )
@@ -104,7 +105,7 @@ class CustomRegisterSerializer(serializers.ModelSerializer):
     The serializer that creates a new user.
     It Hashes the password and save it.
     """
-    userid = serializers.CharField(
+    user_id = serializers.CharField(
         max_length=150,
         min_length=1,
     )
@@ -118,25 +119,27 @@ class CustomRegisterSerializer(serializers.ModelSerializer):
     def save(self, request):
         user = User(
             email=request.data.get('email'),
-            userid=request.data.get('userid'),
+            user_id=request.data.get('user_id'),
             username=request.data.get('username'),
         )
         user.set_password(request.data.get('password'))
+        user.is_active = False
         user.save()
         return user
 
     class Meta:
         model = User
         fields = (
-            'userid',
+            'user_id',
             'username',
             'email',
-            'password'
+            'password',
+            'is_active'
         )
 
 
 def jwt_get_userid_from_payload(payload):
-    return payload.get('userid')
+    return payload.get('user_id')
 
 
 class BaseVerifyUserSerializer(serializers.ModelSerializer):
@@ -147,15 +150,15 @@ class BaseVerifyUserSerializer(serializers.ModelSerializer):
     token = serializers.CharField()
 
     def _check_user_id(self, payload):
-        userid = jwt_get_userid_from_payload(payload)
+        user_id = jwt_get_userid_from_payload(payload)
 
-        if not userid:
-            msg = _('Invalid payload.')
+        if not user_id:
+            msg = _('Invalid payload')
             raise serializers.ValidationError(msg)
 
         # Make sure user exists
         try:
-            user = User.objects.get_by_natural_key(userid)
+            user = User.objects.get_by_natural_key(user_id)
         except User.DoesNotExist:
             msg = _("User Does not exist.")
             raise serializers.ValidationError(msg)
@@ -231,4 +234,4 @@ class CustomRefreshJSONWebTokenSerializer(BaseVerifyUserSerializer):
         new_payload = custom_jwt_payload_handler(user)
         new_payload['orig_iat'] = orig_iat
 
-        return jwt_encode_handler(new_payload), user # return new token and user data
+        return jwt_encode_handler(new_payload), user  # return new token and user data
