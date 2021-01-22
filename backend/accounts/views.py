@@ -1,4 +1,4 @@
-from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.facebook.views import FacebookOAuth2Adapter
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.sites.shortcuts import get_current_site
@@ -22,8 +22,8 @@ from .serializers import UserSerializerWithToken, UserProfileSerializer, CustomR
 User = get_user_model()
 
 
-class GoogleLogin(SocialLoginView):
-    adapter_class = GoogleOAuth2Adapter
+class FacebookLogin(SocialLoginView):
+    adapter_class = FacebookOAuth2Adapter
     client_class = OAuth2Client
 
 
@@ -111,8 +111,7 @@ class FollowUser(APIView):
         except User.DoesNotExist:
             return Response({"isSuccess": False}, status=status.HTTP_404_NOT_FOUND)
 
-        user.following.add(user_to_follow)
-        user_to_follow.followers.add(user)
+        user.follows.add(user_to_follow)
 
         return Response({"isSuccess": True}, status=status.HTTP_200_OK)
 
@@ -134,8 +133,7 @@ class UnFollowUser(APIView):
         except User.DoesNotExist:
             return Response({"isSuccess": False}, status=status.HTTP_404_NOT_FOUND)
 
-        user.following.remove(user_to_follow)
-        user_to_follow.followers.remove(user)
+        user.follows.remove(user_to_follow)
 
         return Response({"isSuccess": True}, status=status.HTTP_200_OK)
 
@@ -180,7 +178,9 @@ class UserFollowers(APIView):
         except User.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        followers = user.followers.all()
+        followers = []
+        for i in user.followers.values():
+            followers.append(User.objects.get(user_pk=i.get('from_user_id')))
 
         serializer = UserProfileSerializer(followers, many=True)
 
@@ -200,7 +200,7 @@ class UserFollowing(APIView):
         except User.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        following = user.following.all()
+        following = user.follows.all()
 
         serializer = UserProfileSerializer(following, many=True)
 

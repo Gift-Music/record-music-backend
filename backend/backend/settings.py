@@ -44,7 +44,6 @@ INSTALLED_APPS = [
 
     # Third Party Apps
     'rest_framework',
-    'rest_framework.authtoken',
 
     'rest_auth',
     'rest_auth.registration',
@@ -52,7 +51,6 @@ INSTALLED_APPS = [
     'django.contrib.sites',
 
     'allauth',
-    'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.facebook',
     'drf_yasg',

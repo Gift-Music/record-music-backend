@@ -5,7 +5,7 @@ from . import views
 app_name = 'accounts'
 
 urlpatterns = [
-    path('rest-auth/google/', views.GoogleLogin.as_view(), name='google_login'),
+    path('rest-auth/google/', views.FacebookLogin.as_view(), name='facebook_login'),
 
     path('login/', views.UserLogin.as_view()),
     path('register/', views.UserRegister.as_view()),

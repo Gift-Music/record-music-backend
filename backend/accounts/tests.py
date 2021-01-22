@@ -1,11 +1,11 @@
-import time
+from collections import OrderedDict
 from datetime import date
 
 from django.test import TestCase
 from django.utils.http import base36_to_int
 from rest_framework.test import APITestCase, APIClient
 from .authentication import *
-
+from accounts.models import Follow
 from backend import settings
 from .serializers import jwt_encode_handler
 from .views import *
@@ -26,9 +26,17 @@ class ModelTest(TestCase):
             'email': 'test@testmail.com',
             'password': 'junhyeok'
         }
-        save_user = User(user_id=cls.userdata.get('user_id'), username=cls.userdata.get('username'),
-                         email=cls.userdata.get('email'), password=cls.userdata.get('password'))
-        save_user.save()
+        User.objects.create_user(user_id=cls.userdata.get('user_id'), username=cls.userdata.get('username'),
+                                 email=cls.userdata.get('email'), password=cls.userdata.get('password'))
+
+        cls.userdata2 = {
+            'user_id': 'test2',
+            'username': 'leetest',
+            'email': 'test2@testmail.com',
+            'password': 'junhyeok'
+        }
+        User.objects.create_user(user_id=cls.userdata2.get('user_id'), username=cls.userdata2.get('username'),
+                                 email=cls.userdata2.get('email'), password=cls.userdata2.get('password'))
 
     def test_should_make_user_models(self):
 
@@ -48,6 +56,58 @@ class ModelTest(TestCase):
         self.assertEqual(user, user_with_email)
         self.assertEqual('test@testmail.com', user.get_user_email())
         self.assertEqual(False, user.is_active is False)
+
+    def test_follow_and_unfollow_models(self):
+        another_user = {
+            'user_id': 'test3',
+            'username': 'parktest',
+            'email': 'test3@testmail.com',
+            'password': 'junhyeok'
+        }
+        User.objects.create_user(user_id=another_user.get('user_id'), username=another_user.get('username'),
+                                 email=another_user.get('email'), password=another_user.get('password'))
+
+        user1 = User.objects.get(user_id='test')
+        user2 = User.objects.get(user_id='test2')
+        user3 = User.objects.get(user_id='test3')
+
+        Follow.objects.get_or_create(from_user=user1, to_user=user2)
+        Follow.objects.get_or_create(from_user=user1, to_user=user3)
+        Follow.objects.get_or_create(from_user=user3, to_user=user1)
+
+        self.assertEqual(1, user1.following.values()[0].get('from_user_id'))
+
+        followers = []
+        for i in user2.followers.values():
+            followers.append(User.objects.get(user_pk=i.get('from_user_id')))
+
+        serializer = UserProfileSerializer(followers, many=True)
+
+        expect_result = OrderedDict([('profile_image', None), ('user_id', 'test'), ('username', 'kimtest'),
+                           ('email', 'test@testmail.com'), ('followers_count', 1), ('following_count', 2)])
+
+        self.assertEqual([expect_result], serializer.data)
+
+        following = user1.follows.all()
+
+        serializer = UserProfileSerializer(following, many=True)
+
+        expect_result_1, expect_result_2 = \
+            OrderedDict([('profile_image', None), ('user_id', 'test2'), ('username', 'leetest'),
+                                     ('email', 'test2@testmail.com'), ('followers_count', 1), ('following_count', 0)]),\
+            OrderedDict([('profile_image', None), ('user_id', 'test3'), ('username', 'parktest'),
+                     ('email', 'test3@testmail.com'), ('followers_count', 1), ('following_count', 1)])
+
+        self.assertEqual([expect_result_1, expect_result_2], serializer.data)
+
+        following = user3.follows.all()
+
+        serializer = UserProfileSerializer(following, many=True)
+
+        expect_result = OrderedDict([('profile_image', None), ('user_id', 'test'), ('username', 'kimtest'),
+                                     ('email', 'test@testmail.com'), ('followers_count', 1), ('following_count', 2)])
+
+        self.assertEqual([expect_result], serializer.data)
 
     def test_upload_musicmaps(self):
         pass
@@ -106,7 +166,8 @@ class ViewTest(APITestCase):
         }
         login_response = self.client.post('/accounts/login/', login_data)
 
-        self.assertEqual(login_response.status_code, status.HTTP_200_OK)
+        # Because this account has not verified yet.
+        self.assertEqual(login_response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_search(self):
         client = APIClient()
@@ -158,6 +219,39 @@ class ViewTest(APITestCase):
         self.assertEqual(True, response.data.get('isSuccess'))
         self.assertEqual(0, user.following_count)
         self.assertEqual(0, user2.followers_count)
+
+    def test_follow_and_following_users_and_unfollow(self):
+        client = APIClient()
+        client.force_authenticate(user=User.objects.get(user_id='test'))
+
+        User.objects.create_user(user_id='test3', username='ParkTest',
+                                 email='test3@testmail.com', password='junhyeok')
+
+        client.post('/accounts/test2/follow/', None)
+        client.post('/accounts/test3/follow/', None)
+
+        response = client.get('/accounts/test/following/')
+        user = User.objects.get(user_id='test')
+
+        expect_result_1, expect_result_2 = \
+            OrderedDict([('profile_image', None), ('user_id', 'test2'), ('username', 'leetest'),
+                         ('email', 'test2@testmail.com'), ('followers_count', 1), ('following_count', 0)]),\
+            OrderedDict([('profile_image', None), ('user_id', 'test3'), ('username', 'ParkTest'),
+                         ('email', 'test3@testmail.com'), ('followers_count', 1), ('following_count', 0)])
+
+        self.assertEqual([expect_result_1, expect_result_2], response.data)
+        self.assertEqual(2, Follow.objects.all().count())
+        self.assertEqual(2, user.following_count)
+
+        client.put('/accounts/test3/unfollow/', None)
+
+        response = client.get('/accounts/test/following/')
+        expect_result = OrderedDict([('profile_image', None), ('user_id', 'test2'), ('username', 'leetest'),
+                                     ('email', 'test2@testmail.com'), ('followers_count', 1), ('following_count', 0)])
+
+        self.assertEqual([expect_result], response.data)
+        self.assertEqual(1, Follow.objects.all().count())
+        self.assertEqual(1, user.following_count)
 
     def test_send_email(self):
 
@@ -236,7 +330,7 @@ class ViewTest(APITestCase):
 
         self.assertEqual(False, (default_token_generator._num_days(not_over_day) - ts) > settings.PASSWORD_RESET_TIMEOUT_DAYS)
 
-        y, m, d = 2021, 1, 24
+        y, m, d = 2021, 1, default_token_generator._today().day + 3
         over_day = date(y, m, d)
 
         self.assertEqual(True, (default_token_generator._num_days(over_day) - ts) > settings.PASSWORD_RESET_TIMEOUT_DAYS)
