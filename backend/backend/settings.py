@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'django.contrib.sites',
 
     'allauth',
+    'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.facebook',
     'drf_yasg',
@@ -104,7 +105,7 @@ ELASTICSEARCH_DSL = {
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'recordmusic',
         'USER': 'django',
         'PASSWORD': 'django',

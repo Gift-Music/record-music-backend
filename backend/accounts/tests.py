@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.utils.http import base36_to_int
 from rest_framework.test import APITestCase, APIClient
 from .authentication import *
-from accounts.models import Follow
+from accounts.models import *
 from backend import settings
 from .serializers import jwt_encode_handler
 from .views import *
@@ -26,8 +26,8 @@ class ModelTest(TestCase):
             'email': 'test@testmail.com',
             'password': 'junhyeok'
         }
-        User.objects.create_user(user_id=cls.userdata.get('user_id'), username=cls.userdata.get('username'),
-                                 email=cls.userdata.get('email'), password=cls.userdata.get('password'))
+        User.objects.create(user_id=cls.userdata.get('user_id'), username=cls.userdata.get('username'),
+                                 email=cls.userdata.get('email'), password=cls.userdata.get('password')).save()
 
         cls.userdata2 = {
             'user_id': 'test2',
@@ -35,8 +35,8 @@ class ModelTest(TestCase):
             'email': 'test2@testmail.com',
             'password': 'junhyeok'
         }
-        User.objects.create_user(user_id=cls.userdata2.get('user_id'), username=cls.userdata2.get('username'),
-                                 email=cls.userdata2.get('email'), password=cls.userdata2.get('password'))
+        User.objects.create(user_id=cls.userdata2.get('user_id'), username=cls.userdata2.get('username'),
+                                 email=cls.userdata2.get('email'), password=cls.userdata2.get('password')).save()
 
     def test_should_make_user_models(self):
 
@@ -71,10 +71,14 @@ class ModelTest(TestCase):
         user2 = User.objects.get(user_id='test2')
         user3 = User.objects.get(user_id='test3')
 
-        Follow.objects.get_or_create(from_user=user1, to_user=user2)
-        Follow.objects.get_or_create(from_user=user1, to_user=user3)
-        Follow.objects.get_or_create(from_user=user3, to_user=user1)
+        user1.follows.add(user2)
+        user1.follows.add(user3)
+        user3.follows.add(user1)
 
+        expect_response = User.objects.get(user_id='test2'), User.objects.get(user_id='test3')
+        expect_response = list(expect_response)
+
+        self.assertEqual(list(user1.follows.all()), expect_response)
         self.assertEqual(1, user1.following.values()[0].get('from_user_id'))
 
         followers = []
