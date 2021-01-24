@@ -351,11 +351,11 @@ class ViewTest(APITestCase):
         self.assertEqual(True, (default_token_generator._num_days(over_day) - ts) > settings.PASSWORD_RESET_TIMEOUT_DAYS)
 
     def test_social_login_access_token_slice(self):
-        user_info = {"id":"2765926233674432",
+        user_info = {"id":"my_id_here",
                      "first_name":"\uc900\ud601",
                      "last_name":"\uc774",
                      "picture":{"data":{"height":50,"is_silhouette":False,
-                                        "url":"https:\/\/platform-lookaside.fbsbx.com\/platform\/profilepic\/?asid=2765926233674432&height=50&width=50&ext=1614094176&hash=AeSg2JqKp0oaWcsKKW8",
+                                        "url":"profile_url_here",
                                         "width":50}},
                      "email":"bnbong\u0040naver.com"}
         self.assertEqual("bnbong@naver.com", user_info['email'])
