@@ -134,6 +134,10 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         verbose_name=_('Is active'),
         default=True
     )
+    is_social = models.BooleanField(
+        verbose_name=_('Is social account'),
+        default=False
+    )
     date_joined = models.DateTimeField(
         verbose_name=_('Date joined'),
         default=timezone.now

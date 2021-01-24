@@ -1,16 +1,17 @@
 from collections import OrderedDict
 from datetime import date
 
-from django.test import TestCase
 from django.utils.http import base36_to_int
 from rest_framework.test import APITestCase, APIClient
 from .authentication import *
-from accounts.models import *
-from backend import settings
 from .serializers import jwt_encode_handler
 from .views import *
 from django.core import mail
 from django.contrib.auth.tokens import default_token_generator
+
+from allauth.utils import get_user_model
+from .models import *
+from django.test import TestCase
 
 User = get_user_model()
 
@@ -38,7 +39,7 @@ class ModelTest(TestCase):
         User.objects.create(user_id=cls.userdata2.get('user_id'), username=cls.userdata2.get('username'),
                                  email=cls.userdata2.get('email'), password=cls.userdata2.get('password')).save()
 
-    def test_should_make_user_models(self):
+    def test_setUpData_check(self):
 
         user = User.objects.get(user_id='test')
 
@@ -56,6 +57,16 @@ class ModelTest(TestCase):
         self.assertEqual(user, user_with_email)
         self.assertEqual('test@testmail.com', user.get_user_email())
         self.assertEqual(False, user.is_active is False)
+
+    def test_follow_model_test(self):
+        user1 = User.objects.get(user_id='test')
+        user2 = User.objects.get(user_id='test2')
+
+        Follow.objects.create(from_user=user1, to_user=user2)
+
+        self.assertEqual(1, Follow.objects.all().count())
+        self.assertEqual('test', Follow.objects.first().from_user.user_id)
+        self.assertEqual('test2', Follow.objects.first().to_user.user_id)
 
     def test_follow_and_unfollow_models(self):
         another_user = {
@@ -338,3 +349,15 @@ class ViewTest(APITestCase):
         over_day = date(y, m, d)
 
         self.assertEqual(True, (default_token_generator._num_days(over_day) - ts) > settings.PASSWORD_RESET_TIMEOUT_DAYS)
+
+    def test_social_login_access_token_slice(self):
+        user_info = {"id":"2765926233674432",
+                     "first_name":"\uc900\ud601",
+                     "last_name":"\uc774",
+                     "picture":{"data":{"height":50,"is_silhouette":False,
+                                        "url":"https:\/\/platform-lookaside.fbsbx.com\/platform\/profilepic\/?asid=2765926233674432&height=50&width=50&ext=1614094176&hash=AeSg2JqKp0oaWcsKKW8",
+                                        "width":50}},
+                     "email":"bnbong\u0040naver.com"}
+        self.assertEqual("bnbong@naver.com", user_info['email'])
+        self.assertEqual("준혁", user_info['first_name'])
+        self.assertEqual("이", user_info['last_name'])

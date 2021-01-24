@@ -50,10 +50,6 @@ INSTALLED_APPS = [
 
     'django.contrib.sites',
 
-    'allauth',
-    'allauth.account',
-    'allauth.socialaccount',
-    'allauth.socialaccount.providers.facebook',
     'drf_yasg',
     'django_elasticsearch_dsl',
 
@@ -166,6 +162,9 @@ REST_FRAMEWORK = {
 }
 
 AUTH_USER_MODEL = 'accounts.User'
+
+FACEBOOK_APP_ID = '186620366569321'
+FACEBOOK_APP_SECRET = '9998a8b88c0c6020e0f4aaa1dd69a4fd'
 
 # EMAIL_BACKEND so allauth can proceed to send confirmation emails
 # ONLY for development/testing use console

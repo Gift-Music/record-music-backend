@@ -1,4 +1,3 @@
-from allauth.socialaccount.providers.facebook.views import FacebookOAuth2Adapter
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.sites.shortcuts import get_current_site
@@ -6,9 +5,7 @@ from django.core.mail import EmailMessage
 from django.db import IntegrityError
 from django.utils.encoding import force_text, force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
-from rest_auth.registration.views import SocialLoginView
 from django.utils.translation import ugettext_lazy as _
-from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 
 from rest_framework import permissions
 from rest_framework.views import APIView
@@ -20,11 +17,6 @@ from .serializers import UserSerializerWithToken, UserProfileSerializer, CustomR
     CustomVerifyJSONWebTokenSerializer, custom_jwt_payload_handler, CustomRefreshJSONWebTokenSerializer
 
 User = get_user_model()
-
-
-class FacebookLogin(SocialLoginView):
-    adapter_class = FacebookOAuth2Adapter
-    client_class = OAuth2Client
 
 
 class UserProfile(APIView):
@@ -275,6 +267,10 @@ class UserLogin(APIView):
             password = request.data.get('password')
 
             user = User.objects.get(email=email)
+            if user.is_social is True:
+                return Response(data={"detail": _("This account is social account. "
+                                                  "Please proceed login with 'Continue with Social Account'")}
+                                , status=status.HTTP_403_FORBIDDEN)
             if not user.check_password(password):
                 return Response(status=status.HTTP_401_UNAUTHORIZED)
             if user and user.is_active is False:
