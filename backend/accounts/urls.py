@@ -5,6 +5,7 @@ from . import views, socialloginview
 app_name = 'accounts'
 
 urlpatterns = [
+
     path('login/', views.UserLogin.as_view()),
     path('register/', views.UserRegister.as_view()),
 
@@ -20,8 +21,20 @@ urlpatterns = [
     path('<user_id>/following/', views.UserFollowing.as_view(), name='user_following'),
     path('register/activate/<str:uidb64>/<str:token>', views.UserActivate.as_view(), name='activate_user'),
 
+]
+
+social_login_urls = [
+
+    # Facebook
     path('sociallogin/facebook/', socialloginview.fblogin, name='facebook_login'),
     path('sociallogin/facebook/redirect/', socialloginview.fblogin_redirect, name='facebook_login_redirect'),
+
+    # Google
+    path('sociallogin/google/', socialloginview.gglogin, name='google_login'),
+    path('sociallogin/google/redirect/', socialloginview.gglogin_redirect, name='google_login_redirect'),
+
 ]
+
+urlpatterns += social_login_urls
 
 

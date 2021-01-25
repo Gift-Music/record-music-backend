@@ -3,13 +3,13 @@ from datetime import date
 
 from django.utils.http import base36_to_int
 from rest_framework.test import APITestCase, APIClient
+
 from .authentication import *
 from .serializers import jwt_encode_handler
 from .views import *
 from django.core import mail
 from django.contrib.auth.tokens import default_token_generator
 
-from allauth.utils import get_user_model
 from .models import *
 from django.test import TestCase
 
@@ -302,6 +302,15 @@ class ViewTest(APITestCase):
         self.assertEqual(1, user.user_pk)
         self.assertEqual(True, check_token)
 
+    def test_check_current_domain(self):
+        from django.test.client import RequestFactory
+        rf = RequestFactory()
+        rf.ALLOWED_HOSTS = ['127.0.0.1']
+        rf.defaults['SERVER_NAME'] = '127.0.0.1'
+        get_request = rf.get('/hello/')
+
+        self.assertEqual('http://127.0.0.1', get_request._current_scheme_host)
+
     def test_send_verification_email(self):
         user = User.objects.get(user_id='test')
         request = {
@@ -361,3 +370,9 @@ class ViewTest(APITestCase):
         self.assertEqual("bnbong@naver.com", user_info['email'])
         self.assertEqual("준혁", user_info['first_name'])
         self.assertEqual("이", user_info['last_name'])
+
+    def test_make_reverse_url_with_format_string(self):
+        redirect_uri = reverse('accounts:google_login_redirect')
+        uri = f'http://localhost:9080{redirect_uri}'
+
+        self.assertEqual('http://localhost:9080/accounts/sociallogin/google/redirect/', uri)

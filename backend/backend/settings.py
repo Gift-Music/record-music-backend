@@ -163,8 +163,15 @@ REST_FRAMEWORK = {
 
 AUTH_USER_MODEL = 'accounts.User'
 
+# Third party app's client info which provides OAuth 2.0
+
+# Owner : Jun-Hyeok Lee(bnbong@naver.com), app name : recordmusic, status : developing
 FACEBOOK_APP_ID = '186620366569321'
 FACEBOOK_APP_SECRET = '9998a8b88c0c6020e0f4aaa1dd69a4fd'
+
+# Owner : Jun-Hyeok Lee(bbbong9@gmail.com), app name : recordmusic, status : test
+GOOGLE_APP_ID = '778918865045-m98cbij91l05ri5gjfu61oe00sbhljnr.apps.googleusercontent.com'
+GOOGLE_APP_SECRET = 'OpVvRH_IBvlZ6c2lfnXnJGyy'
 
 # EMAIL_BACKEND so allauth can proceed to send confirmation emails
 # ONLY for development/testing use console
@@ -176,7 +183,8 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
-PASSWORD_RESET_TIMEOUT_DAYS = 1  # give valid email confirmation deadline 1 day.
+# give valid email confirmation deadline for 1 day.
+PASSWORD_RESET_TIMEOUT_DAYS = 1
 
 REST_AUTH_SERIALIZERS = {
     'USER_DETAILS_SERIALIZER': 'accounts.serializers.UserSerializerWithToken',
