@@ -36,5 +36,3 @@ social_login_urls = [
 ]
 
 urlpatterns += social_login_urls
-
-

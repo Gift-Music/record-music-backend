@@ -13,6 +13,10 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 import os
 import datetime
 
+from dotenv import load_dotenv
+
+load_dotenv(verbose=True)
+
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -20,7 +24,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '94^7rj)i^oi@jqmptp!jjng0(sv((02omz)fzdm)pt7wwa2=sa'
+SECRET_KEY = os.getenv('secret_key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -166,12 +170,12 @@ AUTH_USER_MODEL = 'accounts.User'
 # Third party app's client info which provides OAuth 2.0
 
 # Owner : Jun-Hyeok Lee(bnbong@naver.com), app name : recordmusic, status : developing
-FACEBOOK_APP_ID = '186620366569321'
-FACEBOOK_APP_SECRET = '9998a8b88c0c6020e0f4aaa1dd69a4fd'
+FACEBOOK_APP_ID = os.getenv('facebook_app_id')
+FACEBOOK_APP_SECRET = os.getenv('facebook_app_secret')
 
 # Owner : Jun-Hyeok Lee(bbbong9@gmail.com), app name : recordmusic, status : test
-GOOGLE_APP_ID = '778918865045-m98cbij91l05ri5gjfu61oe00sbhljnr.apps.googleusercontent.com'
-GOOGLE_APP_SECRET = 'OpVvRH_IBvlZ6c2lfnXnJGyy'
+GOOGLE_APP_ID = os.getenv('google_app_id')
+GOOGLE_APP_SECRET = os.getenv('google_app_secret')
 
 # EMAIL_BACKEND so allauth can proceed to send confirmation emails
 # ONLY for development/testing use console
