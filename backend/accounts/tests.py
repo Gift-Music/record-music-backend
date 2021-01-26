@@ -54,6 +54,24 @@ class ModelTest(TestCase):
         self.assertEqual(user, user_with_email)
         self.assertEqual('test@testmail.com', user.get_user_email())
         self.assertEqual(False, user.is_active is False)
+        self.assertEqual(None, user.is_deleted)
+
+    def test_should_create_user_in_model(self):
+        another_user = {
+            'user_id': 'test3',
+            'username': 'parktest',
+            'email': 'test3@testmail.com',
+            'password': 'junhyeok',
+        }
+        User.objects.create_user(user_id=another_user.get('user_id'), username=another_user.get('username'),
+                                 email=another_user.get('email'), password=another_user.get('password'))
+
+        self.assertIsNotNone(User.objects.get(user_id='test3'))
+        self.assertEqual('test3', User.objects.get(user_id='test3').user_id)
+        self.assertEqual('parktest', User.objects.get(user_id='test3').username)
+        self.assertEqual('test3@testmail.com', User.objects.get(user_id='test3').email)
+        self.assertEqual(True, User.objects.get(user_id='test3').is_active)
+        self.assertIsNone(User.objects.get(user_id='test3').is_deleted)
 
     def test_follow_model_test(self):
         user1 = User.objects.get(user_id='test')
@@ -146,7 +164,7 @@ class ViewTest(APITestCase):
         register_response = self.client.post('/accounts/register/', register_data)
 
         self.assertEqual({'detail': 'Verification Email Sent.'}, register_response.data)
-        self.assertEqual(register_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(register_response.status_code, status.HTTP_200_OK)
 
         login_data = {
             'email': 'test3@testmail.com',
@@ -415,3 +433,71 @@ class ViewTest(APITestCase):
         token_generator = DefTokenGen()
 
         self.assertFalse(token_generator.check_token(user, token))
+
+    def test_user_delete(self):
+        client = APIClient()
+        user = User.objects.get(user_id='test')
+        client.force_authenticate(user=user)
+
+        user = User.objects.get(user_id='test')
+        print(user.is_active)
+
+        response = client.put('/accounts/test/profile/delete/')
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+
+        user = User.objects.get(user_id='test')
+        self.assertEqual(False, user.is_active)
+        self.assertIsNotNone(user.is_deleted)
+
+        response = client.put('/accounts/test2/profile/delete/')
+        self.assertEqual(status.HTTP_401_UNAUTHORIZED, response.status_code)
+
+        response = client.put('/accounts/bnbong/profile/delete/')
+        self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
+
+    def test_cannot_follow_and_unfollow_deactivated_user(self):
+        another_user = {
+            'user_id': 'test3',
+            'username': 'parktest',
+            'email': 'test3@testmail.com',
+            'password': 'junhyeok',
+        }
+        User.objects.create_user(user_id=another_user.get('user_id'), username=another_user.get('username'),
+                                 email=another_user.get('email'), password=another_user.get('password'))
+        user = User.objects.get(user_id='test3')
+        user.is_active = False
+        user.is_deleted = timezone.now()
+        user.save()
+
+        client = APIClient()
+        user = User.objects.get(user_id='test')
+        client.force_authenticate(user=user)
+
+        response = client.post('/accounts/test3/follow/')
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+
+        response = client.put('/accounts/test3/unfollow/')
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+
+    def test_cannot_login_deactivated_user(self):
+        another_user = {
+            'user_id': 'test3',
+            'username': 'parktest',
+            'email': 'test3@testmail.com',
+            'password': 'junhyeok',
+        }
+        User.objects.create_user(user_id=another_user.get('user_id'), username=another_user.get('username'),
+                                 email=another_user.get('email'), password=another_user.get('password'))
+        user = User.objects.get(user_id='test3')
+        user.is_active = False
+        user.is_deleted = timezone.now()
+        user.save()
+
+        login_data = {
+            'email': user.email,
+            'password': 'junhyeok'
+        }
+        response = self.client.post('/accounts/login/', login_data)
+
+        self.assertEqual({'detail': 'This account is a withdrawn account.'}, response.data)
+        self.assertEqual(status.HTTP_401_UNAUTHORIZED, response.status_code)

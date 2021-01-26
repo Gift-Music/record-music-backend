@@ -5,6 +5,7 @@ from django.core.mail import EmailMessage
 from django.utils.encoding import force_text, force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.translation import ugettext_lazy as _
+from django.utils import timezone
 
 from rest_framework import permissions
 from rest_framework.views import APIView
@@ -119,6 +120,39 @@ class UserProfile(APIView):
                 return Response(data=cpserializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class UserDelete(APIView):
+    authentication_classes = (authentication.CustomJWTAuthentication,)
+
+    def get_user(self, user_id):
+        try:
+            user = User.objects.get(user_id=user_id)
+            return user
+        except User.DoesNotExist:
+            return None
+
+    # User withdrawal
+    def put(self, request, user_id):
+        req_user = request.user
+
+        user = self.get_user(user_id)
+
+        if user is None:
+
+            return Response({"isSuccess": False}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.user_id != req_user.user_id:
+
+            return Response({"isSuccess": False}, status=status.HTTP_401_UNAUTHORIZED)
+
+        else:
+            user = User.objects.get(user_id=user_id)
+            user.is_active = False
+            user.is_deleted = timezone.now()
+            user.save()
+
+            return Response({"isSuccess": True}, status=status.HTTP_200_OK)
+
+
 class ExploreUsers(APIView):
     """
     Explore 5 new users to display profile photos, user nicknames, Korean names, and follow/followers.
@@ -144,8 +178,15 @@ class FollowUser(APIView):
 
         try:
             user_to_follow = User.objects.get(user_id=user_id)
-            # cannot unfollow myself.
-            if user == user_to_follow: return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+            # cannot follow myself.
+            if user == user_to_follow:
+                return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+            # cannot follow withdrawn user or deactivated user.
+            if user_to_follow.is_deleted or user_to_follow.is_active is False:
+                return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
         except User.DoesNotExist:
             return Response({"isSuccess": False}, status=status.HTTP_404_NOT_FOUND)
 
@@ -166,8 +207,15 @@ class UnFollowUser(APIView):
 
         try:
             user_to_follow = User.objects.get(user_id=user_id)
+
             # cannot unfollow myself.
-            if user == user_to_follow: return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+            if user == user_to_follow:
+                return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+            # cannot unfollow withdrawn user or deactivated user.
+            if user_to_follow.is_deleted or user_to_follow.is_active is False:
+                return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
         except User.DoesNotExist:
             return Response({"isSuccess": False}, status=status.HTTP_404_NOT_FOUND)
 
@@ -318,7 +366,11 @@ class UserLogin(APIView):
                                                   "Please proceed login with 'Continue with Social Account'")}
                                 , status=status.HTTP_403_FORBIDDEN)
             if not user.check_password(password):
-                return Response(status=status.HTTP_401_UNAUTHORIZED)
+                return Response(data={"detail": _("Wrong user id or password.")}
+                                , status=status.HTTP_401_UNAUTHORIZED)
+            if user.is_deleted:
+                return Response(data={"detail": _("This account is a withdrawn account.")}
+                                , status=status.HTTP_401_UNAUTHORIZED)
             if user and user.is_active is False:
                 if email is not None:
                     send_verification_email(request, user, email,
@@ -371,7 +423,7 @@ class UserRegister(APIView):
                 send_verification_email(request, user, email,
                                         link='http://127.0.0.1:9080/accounts/activate')
 
-                return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_201_CREATED)
+                return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_200_OK)
 
             else:
                 return Response(data={"detail": _("Email is not found.")}, status=status.HTTP_404_NOT_FOUND)

@@ -119,6 +119,10 @@ class UserChangeProfileSerializer(serializers.ModelSerializer):
             instance.user_id = validated_data.get('user_id')
         if validated_data.get('password'):
             instance.set_password(validated_data.get('password'))
+        if validated_data.get('is_active'):
+            instance.is_active = validated_data.get('is_active')
+        if validated_data.get('is_deleted'):
+            instance.is_deleted = validated_data.get('is_deleted')
 
         try:
             instance.save()
@@ -135,6 +139,8 @@ class UserChangeProfileSerializer(serializers.ModelSerializer):
             'username',
             'email',
             'password',
+            'is_active',
+            'is_deleted',
         )
 
 

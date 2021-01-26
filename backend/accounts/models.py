@@ -145,7 +145,16 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
     profile_image = ArrayField(
         models.ImageField(), null=True, blank=True
     )
-    follows = models.ManyToManyField("self", through="Follow", symmetrical=False)
+    follows = models.ManyToManyField(
+        "self",
+        through="Follow",
+        symmetrical=False
+    )
+    is_deleted = models.DateTimeField(
+        verbose_name=_('Is deleted'),
+        null=True,
+        blank=True,
+    )
 
     objects = UserManager()
 
