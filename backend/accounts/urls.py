@@ -1,11 +1,10 @@
 from django.urls import path
 
-from . import views
+from . import views, socialloginview
 
 app_name = 'accounts'
 
 urlpatterns = [
-    path('rest-auth/google/', views.GoogleLogin.as_view(), name='google_login'),
 
     path('login/', views.UserLogin.as_view()),
     path('register/', views.UserRegister.as_view()),
@@ -20,5 +19,22 @@ urlpatterns = [
     path('<user_id>/unfollow/', views.UnFollowUser.as_view(), name='unfollow_user'),
     path('<user_id>/followers/', views.UserFollowers.as_view(), name='user_followers'),
     path('<user_id>/following/', views.UserFollowing.as_view(), name='user_following'),
+    path('<user_id>/checkuser/', views.CheckUser.as_view(), name='user_check'),
+    path('checkuser/redirect/<str:uidb64>/<str:token>', views.VerifyUser.as_view(), name='user_check_redirect'),
     path('register/activate/<str:uidb64>/<str:token>', views.UserActivate.as_view(), name='activate_user'),
+
 ]
+
+social_login_urls = [
+
+    # Facebook
+    path('sociallogin/facebook/', socialloginview.fblogin, name='facebook_login'),
+    path('sociallogin/facebook/redirect/', socialloginview.fblogin_redirect, name='facebook_login_redirect'),
+
+    # Google
+    path('sociallogin/google/', socialloginview.gglogin, name='google_login'),
+    path('sociallogin/google/redirect/', socialloginview.gglogin_redirect, name='google_login_redirect'),
+
+]
+
+urlpatterns += social_login_urls

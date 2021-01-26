@@ -9,6 +9,7 @@ from rest_framework_jwt.compat import get_username_field as get_userid_field
 from rest_framework_jwt.serializers import jwt_decode_handler
 from rest_framework_jwt.settings import api_settings
 from django.utils.translation import ugettext as _
+from django.db import IntegrityError
 
 from .models import User
 
@@ -36,7 +37,7 @@ def custom_jwt_payload_handler(user):
     user_id = get_userid(user)
     user_pk = user.user_pk
 
-    payload = { # user_id is a pk of user. Not userid field in User(accounts.User)
+    payload = {
         'user_pk': user_pk,
         'user_id': user_id,
         'exp': datetime.utcnow() + api_settings.JWT_EXPIRATION_DELTA
@@ -62,6 +63,10 @@ def custom_jwt_payload_handler(user):
         payload['iss'] = api_settings.JWT_ISSUER
 
     return payload
+
+
+def jwt_get_userid_from_payload(payload):
+    return payload.get('user_id')
 
 
 class UserSerializerWithToken(serializers.ModelSerializer):
@@ -97,6 +102,39 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'email',
             'followers_count',
             'following_count',
+        )
+
+
+class UserChangeProfileSerializer(serializers.ModelSerializer):
+    """
+    Change user's profile.
+    """
+
+    def update(self, instance, validated_data):
+        if validated_data.get('email'):
+            instance.email = validated_data.get('email')
+        if validated_data.get('username'):
+            instance.username = validated_data.get('username')
+        if validated_data.get('user_id'):
+            instance.user_id = validated_data.get('user_id')
+        if validated_data.get('password'):
+            instance.set_password(validated_data.get('password'))
+
+        try:
+            instance.save()
+        except IntegrityError:
+            raise serializers.ValidationError("email or user_id must be unique.")
+
+        return instance
+
+    class Meta:
+        model = User
+        fields = (
+            'profile_image',
+            'user_id',
+            'username',
+            'email',
+            'password',
         )
 
 
@@ -136,10 +174,6 @@ class CustomRegisterSerializer(serializers.ModelSerializer):
             'password',
             'is_active'
         )
-
-
-def jwt_get_userid_from_payload(payload):
-    return payload.get('user_id')
 
 
 class BaseVerifyUserSerializer(serializers.ModelSerializer):
@@ -194,8 +228,6 @@ class CustomVerifyJSONWebTokenSerializer(BaseVerifyUserSerializer):
 
         payload = self._check_payload_user(self, token=token)
         user = self._check_user_id(self, payload=payload)
-
-        # userprofile = UserSerializerWithToken(user)
 
         return token, user
 

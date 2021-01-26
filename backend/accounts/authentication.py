@@ -8,9 +8,9 @@ from backend import settings
 
 
 class CustomJWTAuthentication(BaseAuthentication):
-    '''
-        custom authentication class for DRF and JWT
-    '''
+    """
+    custom authentication class for DRF and JWT
+    """
 
     def authenticate(self, request):
 
