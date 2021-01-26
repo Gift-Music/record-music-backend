@@ -2,7 +2,6 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.mail import EmailMessage
-from django.db import IntegrityError
 from django.utils.encoding import force_text, force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.translation import ugettext_lazy as _
@@ -13,15 +12,53 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from . import authentication
-from .serializers import UserSerializerWithToken, UserProfileSerializer, CustomRegisterSerializer, \
-    CustomVerifyJSONWebTokenSerializer, custom_jwt_payload_handler, CustomRefreshJSONWebTokenSerializer
+from .serializers import *
 
 User = get_user_model()
+
+
+def user_jwt_encode(user):
+    """
+    use custom_jwt_payload_handler to encode user information into jwt token
+    """
+    try:
+        from rest_framework_jwt.settings import api_settings
+    except ImportError:
+        raise ImportError("djangorestframework_jwt needs to be installed")
+
+    jwt_payload_handler = custom_jwt_payload_handler
+    jwt_encode_handler = api_settings.JWT_ENCODE_HANDLER
+
+    payload = jwt_payload_handler(user)
+    return jwt_encode_handler(payload)
+
+
+def send_verification_email(request, user, email, link):
+    """
+    Send verification email to user.
+
+    Usage : Register new account, Checking Author of the logged account is owner.
+    """
+    def message(domain, uidb64, token):
+        activation_link = f"{link}/{uidb64}/{token}"
+        return f"아래 링크를 클릭하면 회원 인증이 완료됩니다.\n\n" \
+               f"회원 인증 완료 링크 : {activation_link}\n\n감사합니다."
+
+    subject = '[RecordMusic] 계정 인증'
+    current_site = get_current_site(request)
+    domain = current_site.domain
+    uidb64 = urlsafe_base64_encode(force_bytes(user.user_pk))
+    token = default_token_generator.make_token(user=user)  # One-time token for account authentication
+    message = message(domain, uidb64, token)
+    mail = EmailMessage(subject, message, to=[email])
+    mail.send()
 
 
 class UserProfile(APIView):
     """
     Check Current UserProfile
+
+    todo : changing profile image
     """
     authentication_classes = (authentication.CustomJWTAuthentication,)
 
@@ -43,7 +80,6 @@ class UserProfile(APIView):
 
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
-    # 자신의 프로필을 수정.
     def put(self, request, user_id, format=None):
 
         req_user = request.user
@@ -60,17 +96,27 @@ class UserProfile(APIView):
 
         else:
 
-            serializer = UserProfileSerializer(user, data=request.data, partial=True)
+            cpserializer = UserChangeProfileSerializer(user, data=request.data, partial=True)
 
-            if serializer.is_valid():
+            if cpserializer.is_valid():
+                cpserializer.update(validated_data=cpserializer.validated_data, instance=user)
+                user = cpserializer.save()
 
-                serializer.save()
+                serializer = UserSerializerWithToken(user)
+                user_token = serializer.data.get('token')
+                data = {'token': user_token,
+                        'user': {
+                            "profile_image": serializer.data.get('profile_image'),
+                            "user_id": serializer.data.get('user_id'),
+                            "email": serializer.data.get('email')
+                            }
+                        }
 
-                return Response(data=serializer.data, status=status.HTTP_200_OK)
+                return Response(data=data, status=status.HTTP_200_OK)
 
             else:
 
-                return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return Response(data=cpserializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ExploreUsers(APIView):
@@ -275,7 +321,8 @@ class UserLogin(APIView):
                 return Response(status=status.HTTP_401_UNAUTHORIZED)
             if user and user.is_active is False:
                 if email is not None:
-                    send_verification_email(request, user, email)
+                    send_verification_email(request, user, email,
+                                            link='http://127.0.0.1:9080/accounts/activate')
 
                     return Response(data={"detail": _("Please verify this account. Verification Email Sent.")}
                                     , status=status.HTTP_403_FORBIDDEN)
@@ -300,22 +347,6 @@ class UserLogin(APIView):
         return Response(data=data, status=status.HTTP_200_OK)
 
 
-def user_jwt_encode(user):
-    """
-    use custom_jwt_payload_handler to encode user information into jwt token
-    """
-    try:
-        from rest_framework_jwt.settings import api_settings
-    except ImportError:
-        raise ImportError("djangorestframework_jwt needs to be installed")
-
-    jwt_payload_handler = custom_jwt_payload_handler
-    jwt_encode_handler = api_settings.JWT_ENCODE_HANDLER
-
-    payload = jwt_payload_handler(user)
-    return jwt_encode_handler(payload)
-
-
 class UserRegister(APIView):
     """
     request:
@@ -337,7 +368,8 @@ class UserRegister(APIView):
             email = user.get_user_email()
 
             if user.is_active is False and email is not None:
-                send_verification_email(request, user, email)
+                send_verification_email(request, user, email,
+                                        link='http://127.0.0.1:9080/accounts/activate')
 
                 return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_201_CREATED)
 
@@ -347,7 +379,8 @@ class UserRegister(APIView):
             user = User.objects.get(user_id=request.data.get('user_id'))
             if user and user.is_active is False:
                 if user.email is not None:
-                    send_verification_email(request, user, user.email)
+                    send_verification_email(request, user, user.email,
+                                            link='http://127.0.0.1:9080/accounts/activate')
 
                     return Response(data={"detail": _("You have not verify this account. Verification Email Sent.")}
                                     , status=status.HTTP_403_FORBIDDEN)
@@ -363,22 +396,11 @@ class UserRegister(APIView):
         return user
 
 
-def send_verification_email(request, user, email):
-    def message(domain, uidb64, token):
-        return f"아래 링크를 클릭하면 회원 가입 인증이 완료됩니다.\n\n" \
-               f"회원가입 완료 링크 : http://127.0.0.1:9080/accounts/register/activate/{uidb64}/{token}\n\n감사합니다."
-
-    subject = '[RecordMusic] 계정 인증'
-    current_site = get_current_site(request)
-    domain = current_site.domain
-    uidb64 = urlsafe_base64_encode(force_bytes(user.user_pk))
-    token = default_token_generator.make_token(user=user)  # One-time token for account authentication
-    message = message(domain, uidb64, token)
-    mail = EmailMessage(subject, message, to=[email])
-    mail.send()
-
-
 class UserActivate(APIView):
+    """
+    response:
+        {"isSuccess": Boolean}
+    """
     permission_classes = (permissions.AllowAny,)
 
     def get(self, *args, **kwargs):
@@ -387,29 +409,67 @@ class UserActivate(APIView):
     def post(self, request, uidb64, token):
         uid = force_text(urlsafe_base64_decode(uidb64))
         user = User.objects.get(user_pk=uid)
+
         if user is not None and default_token_generator.check_token(user=user, token=token):
             user.is_active = True
             user.save()
-            serializer = UserSerializerWithToken(user)
 
-            user_token = serializer.data.get('token')
-            email = serializer.data['email']
-
-            data = {'token': user_token,
-                    'user': {
-                        "profile_image": serializer.data.get('profile_image'),
-                        "user_id": serializer.data.get('user_id'),
-                        "email": email
-                        }
-                    }
-
-            return Response(data=data, status=status.HTTP_200_OK)
+            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
 
         elif default_token_generator.check_token(user=user, token=token) is False:
-            send_verification_email(request, user=user, email=user.email)
+            send_verification_email(request, user=user, email=user.email,
+                                    link='http://127.0.0.1:9080/accounts/activate')
 
             return Response(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
                             status=status.HTTP_403_FORBIDDEN)
 
         else:
-            return Response(data={"detail": _("Wrong verification.")}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CheckUser(APIView):
+    """
+    Confirming that the user is himself by sending confirmation email.
+    Can use it when user authorization is needed before change password.
+
+    PW change suggestion : The process of changing password is recommended to be implemented
+    as a process of identifying user themselves via email and initializing password into new password
+    rather than the process of writing old password and writing new password.
+
+    This is because accounts created with social accounts have random passwords,
+    and even the owner of social accounts does not know the password of accounts stored in the DB.
+    """
+    authentication_classes = (authentication.CustomJWTAuthentication,)
+
+    def post(self, request, user_id):
+        user = User.objects.get(user_id=user_id)
+        email = user.get_user_email()
+
+        send_verification_email(request, user=user, email=email,
+                                link='http://127.0.0.1:9080/accounts/checkuser/redirect')
+
+
+class VerifyUser(APIView):
+    """
+    response:
+        {"isSuccess": Boolean}
+    """
+    permission_classes = (permissions.AllowAny,)
+
+    def get(self, request, uidb64, token):
+        uid = force_text(urlsafe_base64_decode(uidb64))
+        user = User.objects.get(user_pk=uid)
+        request.user = user
+        if user is not None and default_token_generator.check_token(user=user, token=token):
+
+            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
+
+        elif default_token_generator.check_token(user=user, token=token) is False:
+            send_verification_email(request, user=user, email=user.email,
+                                    link='http://127.0.0.1:9080/accounts/checkuser/redirect')
+
+            return Response(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        else:
+            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)

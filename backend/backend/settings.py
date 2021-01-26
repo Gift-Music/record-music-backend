@@ -181,8 +181,8 @@ GOOGLE_APP_SECRET = os.getenv('google_app_secret')
 # ONLY for development/testing use console
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = "smtp.gmail.com"
-EMAIL_HOST_USER = 'email here'
-EMAIL_HOST_PASSWORD = 'password here'
+EMAIL_HOST_USER = os.getenv('email_host_user')
+EMAIL_HOST_PASSWORD = os.getenv('email_host_password')
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
