@@ -448,6 +448,8 @@ class CheckUser(APIView):
         send_verification_email(request, user=user, email=email,
                                 link='http://127.0.0.1:9080/accounts/checkuser/redirect')
 
+        return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_200_OK)
+
 
 class VerifyUser(APIView):
     """
