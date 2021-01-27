@@ -75,7 +75,10 @@ class UserProfile(APIView):
         user = self.get_user(user_id)
 
         if user is None:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.is_active is False:
+            return Response({"detail": _("Cannot get disabled account.")}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = UserProfileSerializer(user)
 
@@ -89,17 +92,23 @@ class UserProfile(APIView):
 
         if user is None:
 
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         elif user.user_id != req_user.user_id:
 
-            return Response(status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        elif user.is_active is False and user.is_deleted is not None:
+            return Response({"detail": _("Cannot modify disabled account.")}, status=status.HTTP_403_FORBIDDEN)
 
         else:
 
             cpserializer = UserChangeProfileSerializer(user, data=request.data, partial=True)
 
             if cpserializer.is_valid():
+                if cpserializer.validated_data.get('password') and user.is_social is True:
+                    return Response({"detail": _("Social account cannot change password.")},
+                                    status=status.HTTP_403_FORBIDDEN)
                 cpserializer.update(validated_data=cpserializer.validated_data, instance=user)
                 user = cpserializer.save()
 
@@ -299,13 +308,17 @@ class UserTokenVerify(APIView):
     request:
         "token" : string
     """
-    permission_classes = (permissions.AllowAny,)
+    authentication_classes = (authentication.CustomJWTAuthentication,)
 
     def post(self, request):
 
         try:
+            logged_user = request.user
             serializer_class = CustomVerifyJSONWebTokenSerializer
             token, user = serializer_class.validate(serializer_class, request.data)
+
+            if user != logged_user:
+                return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
 
             serializer = UserProfileSerializer(user)
             data = {'token': token,
@@ -327,23 +340,30 @@ class UserTokenRefresh(APIView):
     request:
         "token" : string
     """
-    permission_classes = (permissions.AllowAny,)
+    authentication_classes = (authentication.CustomJWTAuthentication,)
 
     def post(self, request):
-        serialzier_class = CustomRefreshJSONWebTokenSerializer
-        token, user = serialzier_class.validate(serialzier_class, request.data)
+        try:
+            logged_user = request.user
+            serialzier_class = CustomRefreshJSONWebTokenSerializer
+            token, user = serialzier_class.validate(serialzier_class, request.data)
 
-        serializer = UserSerializerWithToken(user)
-        user_token = serializer.data.get('token')
-        data = {'token': user_token,
-                'user': {
-                    "profile_image": serializer.data.get('profile_image'),
-                    "user_id": serializer.data.get('user_id'),
-                    "email": serializer.data.get('email')
+            if user != logged_user:
+                return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+            serializer = UserSerializerWithToken(user)
+            user_token = serializer.data.get('token')
+            data = {'token': user_token,
+                    'user': {
+                        "profile_image": serializer.data.get('profile_image'),
+                        "user_id": serializer.data.get('user_id'),
+                        "email": serializer.data.get('email')
+                        }
                     }
-                }
 
-        return Response(data=data, status=status.HTTP_200_OK)
+            return Response(data=data, status=status.HTTP_200_OK)
+        except (AssertionError, TypeError):
+            return Response({"detail": _("No user found, cannot refresh token.")}, status=status.HTTP_404_NOT_FOUND)
 
 
 class UserLogin(APIView):
