@@ -3,6 +3,8 @@ from django.contrib.auth.models import (
     _user_has_module_perms
 )
 from django.db import models
+from django.contrib.postgres.fields import ArrayField
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 
@@ -132,26 +134,18 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         verbose_name=_('Is active'),
         default=True
     )
+    is_social = models.BooleanField(
+        verbose_name=_('Is social account'),
+        default=False
+    )
     date_joined = models.DateTimeField(
         verbose_name=_('Date joined'),
         default=timezone.now
     )
-    followers = models.ManyToManyField(
-        "self",
-        blank=True,
-        symmetrical=False,
-        related_name="recordmusic_followers"
+    profile_image = ArrayField(
+        models.ImageField(), null=True, blank=True
     )
-
-    following = models.ManyToManyField(
-        "self",
-        blank=True,
-        symmetrical=False,
-        related_name="recordmusic_following"
-    )
-    profile_image = models.ImageField(
-        null=True
-    )
+    follows = models.ManyToManyField("self", through="Follow", symmetrical=False)
 
     objects = UserManager()
 
@@ -177,7 +171,7 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         return self.email
 
     def get_absolute_url(self):
-        return reversed('users:detail', kwargs={'user_id': self.user_id})
+        return reverse('users:detail', kwargs={'user_id': self.user_id})
 
     @property
     def is_staff(self):
@@ -191,3 +185,11 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
     @property
     def following_count(self):
         return self.following.all().count()
+
+
+class Follow(models.Model):
+    from_user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, related_name='following')
+    to_user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, related_name='followers')
+
+    class Meta:
+        db_table = 'follow'

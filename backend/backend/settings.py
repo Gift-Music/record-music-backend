@@ -13,6 +13,10 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 import os
 import datetime
 
+from dotenv import load_dotenv
+
+load_dotenv(verbose=True)
+
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -20,7 +24,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '94^7rj)i^oi@jqmptp!jjng0(sv((02omz)fzdm)pt7wwa2=sa'
+SECRET_KEY = os.getenv('secret_key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -44,17 +48,12 @@ INSTALLED_APPS = [
 
     # Third Party Apps
     'rest_framework',
-    'rest_framework.authtoken',
 
     'rest_auth',
     'rest_auth.registration',
 
     'django.contrib.sites',
 
-    'allauth',
-    'allauth.account',
-    'allauth.socialaccount',
-    'allauth.socialaccount.providers.facebook',
     'drf_yasg',
     'django_elasticsearch_dsl',
 
@@ -106,7 +105,7 @@ ELASTICSEARCH_DSL = {
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'recordmusic',
         'USER': 'django',
         'PASSWORD': 'django',
@@ -168,17 +167,28 @@ REST_FRAMEWORK = {
 
 AUTH_USER_MODEL = 'accounts.User'
 
+# Third party app's client info which provides OAuth 2.0
+
+# Owner : Jun-Hyeok Lee(bnbong@naver.com), app name : recordmusic, status : developing
+FACEBOOK_APP_ID = os.getenv('facebook_app_id')
+FACEBOOK_APP_SECRET = os.getenv('facebook_app_secret')
+
+# Owner : Jun-Hyeok Lee(bbbong9@gmail.com), app name : recordmusic, status : test
+GOOGLE_APP_ID = os.getenv('google_app_id')
+GOOGLE_APP_SECRET = os.getenv('google_app_secret')
+
 # EMAIL_BACKEND so allauth can proceed to send confirmation emails
 # ONLY for development/testing use console
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = "smtp.gmail.com"
-EMAIL_HOST_USER = 'email here'
-EMAIL_HOST_PASSWORD = 'password here'
+EMAIL_HOST_USER = os.getenv('email_host_user')
+EMAIL_HOST_PASSWORD = os.getenv('email_host_password')
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
-PASSWORD_RESET_TIMEOUT_DAYS = 1  # give valid email confirmation deadline 1 day.
+# give valid email confirmation deadline for 1 day.
+PASSWORD_RESET_TIMEOUT_DAYS = 1
 
 REST_AUTH_SERIALIZERS = {
     'USER_DETAILS_SERIALIZER': 'accounts.serializers.UserSerializerWithToken',
