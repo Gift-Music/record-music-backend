@@ -14,8 +14,6 @@ class Comment(InnerDoc):
 class Music(InnerDoc):
     artists = Text()
     name = Text()
-    melon_song_id = Integer()
-    genie_song_id = Integer()
     yt_song_id = Text()
 
 

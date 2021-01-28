@@ -5,5 +5,6 @@ from . import views
 app_name = 'muscimaps'
 
 urlpatterns = [
-    path('', views.MusicMapsGeo.as_view())
+    path('geo/', views.MusicMapsGeo.as_view()),
+    path('', views.MusicMaps.as_view())
 ]
