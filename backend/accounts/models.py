@@ -142,9 +142,10 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         verbose_name=_('Date joined'),
         default=timezone.now
     )
-    profile_image = ArrayField(
-        models.ImageField(), null=True, blank=True
-    )
+    # profile_image = ArrayField(
+    #     models.ImageField(upload_to='profile_images/'), null=True, blank=True
+    # )
+    # profile_image = models.ImageField(upload_to='profile_images/', null=True, blank=True)
     follows = models.ManyToManyField(
         "self",
         through="Follow",
@@ -202,3 +203,19 @@ class Follow(models.Model):
 
     class Meta:
         db_table = 'follow'
+
+
+class ProfileImage(models.Model):
+    file = models.ImageField()
+    creator = models.ForeignKey(
+        User,
+        related_name='profile_image',
+        on_delete=models.CASCADE,
+        null=True,
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )

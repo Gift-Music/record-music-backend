@@ -1,5 +1,7 @@
+from django.conf.urls.static import static
 from django.urls import path
 
+from backend import settings
 from . import views, socialloginview
 
 app_name = 'accounts'
@@ -24,7 +26,7 @@ urlpatterns = [
     path('checkuser/redirect/<str:uidb64>/<str:token>', views.VerifyUser.as_view(), name='user_check_redirect'),
     path('register/activate/<str:uidb64>/<str:token>', views.UserActivate.as_view(), name='activate_user'),
 
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 social_login_urls = [
 

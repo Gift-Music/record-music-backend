@@ -129,6 +129,22 @@ class UserProfile(APIView):
                 return Response(data=cpserializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class ProfileImageView(APIView):
+    authentication_classes = (authentication.CustomJWTAuthentication,)
+
+    def get(self, request, user_id):
+        """
+        Get user's profile image
+        """
+        pass
+
+    def post(self, request, user_id):
+        """
+        Save user's profile image
+        """
+        pass
+
+
 class UserDelete(APIView):
     authentication_classes = (authentication.CustomJWTAuthentication,)
 
@@ -394,7 +410,7 @@ class UserLogin(APIView):
             if user and user.is_active is False:
                 if email is not None:
                     send_verification_email(request, user, email,
-                                            link='http://127.0.0.1:9080/accounts/activate')
+                                            link='http://127.0.0.1:9080/accounts/register/activate')
 
                     return Response(data={"detail": _("Please verify this account. Verification Email Sent.")}
                                     , status=status.HTTP_403_FORBIDDEN)
@@ -441,7 +457,7 @@ class UserRegister(APIView):
 
             if user.is_active is False and email is not None:
                 send_verification_email(request, user, email,
-                                        link='http://127.0.0.1:9080/accounts/activate')
+                                        link='http://127.0.0.1:9080/accounts/register/activate')
 
                 return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_200_OK)
 
@@ -452,7 +468,7 @@ class UserRegister(APIView):
             if user and user.is_active is False:
                 if user.email is not None:
                     send_verification_email(request, user, user.email,
-                                            link='http://127.0.0.1:9080/accounts/activate')
+                                            link='http://127.0.0.1:9080/accounts/register/activate')
 
                     return Response(data={"detail": _("You have not verify this account. Verification Email Sent.")}
                                     , status=status.HTTP_403_FORBIDDEN)
@@ -490,7 +506,7 @@ class UserActivate(APIView):
 
         elif default_token_generator.check_token(user=user, token=token) is False:
             send_verification_email(request, user=user, email=user.email,
-                                    link='http://127.0.0.1:9080/accounts/activate')
+                                    link='http://127.0.0.1:9080/accounts/register/activate')
 
             return Response(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
                             status=status.HTTP_403_FORBIDDEN)

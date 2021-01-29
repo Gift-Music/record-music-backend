@@ -8,6 +8,7 @@ from rest_framework.test import APITestCase, APIClient
 from .authentication import *
 from .views import *
 from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.auth.tokens import default_token_generator, PasswordResetTokenGenerator
 
 from .models import *
@@ -268,7 +269,7 @@ class BaseUserAccountViewTest(APITestCase):
         self.assertEqual(1, Follow.objects.all().count())
         self.assertEqual(1, user.following_count)
 
-    def test_should_verify_user_token(self):
+    def test_verify_user_token(self):
         user = User.objects.get(user_id='test')
         client = APIClient()
         client.force_authenticate(user=User.objects.get(user_id='test'))
@@ -283,7 +284,7 @@ class BaseUserAccountViewTest(APITestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual('test', response.data.get('user').get('user_id'))
 
-    def test_should_refresh_user_token(self):
+    def test_refresh_user_token(self):
         user = User.objects.get(user_id='test')
         client = APIClient()
         client.force_authenticate(user=User.objects.get(user_id='test'))
@@ -680,13 +681,13 @@ class UserAccountFailTest(TestCase):
         user = User.objects.get(user_id='test')
         client.force_authenticate(user=user)
 
-        response = client.post('/accounts/test/follow/',)
+        response = client.post('/accounts/test/follow/', )
 
         # Cannot follow myself.
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
         self.assertEqual({'isSuccess': False}, response.data)
 
-        response = client.put('/accounts/test/unfollow/',)
+        response = client.put('/accounts/test/unfollow/', )
 
         # Cannot unfollow myself.
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
