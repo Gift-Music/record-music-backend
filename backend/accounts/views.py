@@ -5,6 +5,7 @@ from django.core.mail import EmailMessage
 from django.utils.encoding import force_text, force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.translation import ugettext_lazy as _
+from django.utils import timezone
 
 from rest_framework import permissions
 from rest_framework.views import APIView
@@ -74,7 +75,10 @@ class UserProfile(APIView):
         user = self.get_user(user_id)
 
         if user is None:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.is_active is False:
+            return Response({"detail": _("Cannot get disabled account.")}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = UserProfileSerializer(user)
 
@@ -88,17 +92,23 @@ class UserProfile(APIView):
 
         if user is None:
 
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         elif user.user_id != req_user.user_id:
 
-            return Response(status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        elif user.is_active is False and user.is_deleted is not None:
+            return Response({"detail": _("Cannot modify disabled account.")}, status=status.HTTP_403_FORBIDDEN)
 
         else:
 
             cpserializer = UserChangeProfileSerializer(user, data=request.data, partial=True)
 
             if cpserializer.is_valid():
+                if cpserializer.validated_data.get('password') and user.is_social is True:
+                    return Response({"detail": _("Social account cannot change password.")},
+                                    status=status.HTTP_403_FORBIDDEN)
                 cpserializer.update(validated_data=cpserializer.validated_data, instance=user)
                 user = cpserializer.save()
 
@@ -117,6 +127,55 @@ class UserProfile(APIView):
             else:
 
                 return Response(data=cpserializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProfileImageView(APIView):
+    authentication_classes = (authentication.CustomJWTAuthentication,)
+
+    def get(self, request, user_id):
+        """
+        Get user's profile image
+        """
+        pass
+
+    def post(self, request, user_id):
+        """
+        Save user's profile image
+        """
+        pass
+
+
+class UserDelete(APIView):
+    authentication_classes = (authentication.CustomJWTAuthentication,)
+
+    def get_user(self, user_id):
+        try:
+            user = User.objects.get(user_id=user_id)
+            return user
+        except User.DoesNotExist:
+            return None
+
+    # User withdrawal
+    def put(self, request, user_id):
+        req_user = request.user
+
+        user = self.get_user(user_id)
+
+        if user is None:
+
+            return Response({"isSuccess": False}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.user_id != req_user.user_id:
+
+            return Response({"isSuccess": False}, status=status.HTTP_401_UNAUTHORIZED)
+
+        else:
+            user = User.objects.get(user_id=user_id)
+            user.is_active = False
+            user.is_deleted = timezone.now()
+            user.save()
+
+            return Response({"isSuccess": True}, status=status.HTTP_200_OK)
 
 
 class ExploreUsers(APIView):
@@ -144,8 +203,15 @@ class FollowUser(APIView):
 
         try:
             user_to_follow = User.objects.get(user_id=user_id)
-            # cannot unfollow myself.
-            if user == user_to_follow: return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+            # cannot follow myself.
+            if user == user_to_follow:
+                return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+            # cannot follow withdrawn user or deactivated user.
+            if user_to_follow.is_deleted or user_to_follow.is_active is False:
+                return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
         except User.DoesNotExist:
             return Response({"isSuccess": False}, status=status.HTTP_404_NOT_FOUND)
 
@@ -166,8 +232,15 @@ class UnFollowUser(APIView):
 
         try:
             user_to_follow = User.objects.get(user_id=user_id)
+
             # cannot unfollow myself.
-            if user == user_to_follow: return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+            if user == user_to_follow:
+                return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+            # cannot unfollow withdrawn user or deactivated user.
+            if user_to_follow.is_deleted or user_to_follow.is_active is False:
+                return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
         except User.DoesNotExist:
             return Response({"isSuccess": False}, status=status.HTTP_404_NOT_FOUND)
 
@@ -251,13 +324,17 @@ class UserTokenVerify(APIView):
     request:
         "token" : string
     """
-    permission_classes = (permissions.AllowAny,)
+    authentication_classes = (authentication.CustomJWTAuthentication,)
 
     def post(self, request):
 
         try:
+            logged_user = request.user
             serializer_class = CustomVerifyJSONWebTokenSerializer
             token, user = serializer_class.validate(serializer_class, request.data)
+
+            if user != logged_user:
+                return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
 
             serializer = UserProfileSerializer(user)
             data = {'token': token,
@@ -279,23 +356,30 @@ class UserTokenRefresh(APIView):
     request:
         "token" : string
     """
-    permission_classes = (permissions.AllowAny,)
+    authentication_classes = (authentication.CustomJWTAuthentication,)
 
     def post(self, request):
-        serialzier_class = CustomRefreshJSONWebTokenSerializer
-        token, user = serialzier_class.validate(serialzier_class, request.data)
+        try:
+            logged_user = request.user
+            serialzier_class = CustomRefreshJSONWebTokenSerializer
+            token, user = serialzier_class.validate(serialzier_class, request.data)
 
-        serializer = UserSerializerWithToken(user)
-        user_token = serializer.data.get('token')
-        data = {'token': user_token,
-                'user': {
-                    "profile_image": serializer.data.get('profile_image'),
-                    "user_id": serializer.data.get('user_id'),
-                    "email": serializer.data.get('email')
+            if user != logged_user:
+                return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+            serializer = UserSerializerWithToken(user)
+            user_token = serializer.data.get('token')
+            data = {'token': user_token,
+                    'user': {
+                        "profile_image": serializer.data.get('profile_image'),
+                        "user_id": serializer.data.get('user_id'),
+                        "email": serializer.data.get('email')
+                        }
                     }
-                }
 
-        return Response(data=data, status=status.HTTP_200_OK)
+            return Response(data=data, status=status.HTTP_200_OK)
+        except (AssertionError, TypeError):
+            return Response({"detail": _("No user found, cannot refresh token.")}, status=status.HTTP_404_NOT_FOUND)
 
 
 class UserLogin(APIView):
@@ -318,11 +402,15 @@ class UserLogin(APIView):
                                                   "Please proceed login with 'Continue with Social Account'")}
                                 , status=status.HTTP_403_FORBIDDEN)
             if not user.check_password(password):
-                return Response(status=status.HTTP_401_UNAUTHORIZED)
+                return Response(data={"detail": _("Wrong user id or password.")}
+                                , status=status.HTTP_401_UNAUTHORIZED)
+            if user.is_deleted:
+                return Response(data={"detail": _("This account is a withdrawn account.")}
+                                , status=status.HTTP_401_UNAUTHORIZED)
             if user and user.is_active is False:
                 if email is not None:
                     send_verification_email(request, user, email,
-                                            link='http://127.0.0.1:9080/accounts/activate')
+                                            link='http://127.0.0.1:9080/accounts/register/activate')
 
                     return Response(data={"detail": _("Please verify this account. Verification Email Sent.")}
                                     , status=status.HTTP_403_FORBIDDEN)
@@ -369,9 +457,9 @@ class UserRegister(APIView):
 
             if user.is_active is False and email is not None:
                 send_verification_email(request, user, email,
-                                        link='http://127.0.0.1:9080/accounts/activate')
+                                        link='http://127.0.0.1:9080/accounts/register/activate')
 
-                return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_201_CREATED)
+                return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_200_OK)
 
             else:
                 return Response(data={"detail": _("Email is not found.")}, status=status.HTTP_404_NOT_FOUND)
@@ -380,7 +468,7 @@ class UserRegister(APIView):
             if user and user.is_active is False:
                 if user.email is not None:
                     send_verification_email(request, user, user.email,
-                                            link='http://127.0.0.1:9080/accounts/activate')
+                                            link='http://127.0.0.1:9080/accounts/register/activate')
 
                     return Response(data={"detail": _("You have not verify this account. Verification Email Sent.")}
                                     , status=status.HTTP_403_FORBIDDEN)
@@ -418,7 +506,7 @@ class UserActivate(APIView):
 
         elif default_token_generator.check_token(user=user, token=token) is False:
             send_verification_email(request, user=user, email=user.email,
-                                    link='http://127.0.0.1:9080/accounts/activate')
+                                    link='http://127.0.0.1:9080/accounts/register/activate')
 
             return Response(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
                             status=status.HTTP_403_FORBIDDEN)

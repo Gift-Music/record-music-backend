@@ -1,5 +1,7 @@
+from django.conf.urls.static import static
 from django.urls import path
 
+from backend import settings
 from . import views, socialloginview
 
 app_name = 'accounts'
@@ -15,6 +17,7 @@ urlpatterns = [
     path('search/<user_id>/', views.Search.as_view(), name='search'),
     path('explore/', views.ExploreUsers.as_view(), name='explore_user'),
     path('<user_id>/profile/', views.UserProfile.as_view(), name='user_profile'),
+    path('<user_id>/profile/delete/', views.UserDelete.as_view(), name='user_withdrawal'),
     path('<user_id>/follow/', views.FollowUser.as_view(), name='follow_user'),
     path('<user_id>/unfollow/', views.UnFollowUser.as_view(), name='unfollow_user'),
     path('<user_id>/followers/', views.UserFollowers.as_view(), name='user_followers'),
@@ -23,7 +26,7 @@ urlpatterns = [
     path('checkuser/redirect/<str:uidb64>/<str:token>', views.VerifyUser.as_view(), name='user_check_redirect'),
     path('register/activate/<str:uidb64>/<str:token>', views.UserActivate.as_view(), name='activate_user'),
 
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 social_login_urls = [
 

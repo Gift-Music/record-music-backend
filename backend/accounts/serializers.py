@@ -11,7 +11,7 @@ from rest_framework_jwt.settings import api_settings
 from django.utils.translation import ugettext as _
 from django.db import IntegrityError
 
-from .models import User
+from .models import *
 
 jwt_encode_handler = api_settings.JWT_ENCODE_HANDLER
 
@@ -69,10 +69,24 @@ def jwt_get_userid_from_payload(payload):
     return payload.get('user_id')
 
 
+class ProfileImageSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = ProfileImage
+        fields = (
+            'id',
+            'file',
+            'creator',
+            'created_at',
+            'updated_at',
+        )
+
+
 class UserSerializerWithToken(serializers.ModelSerializer):
 
     token = serializers.SerializerMethodField()
     password = serializers.CharField(write_only=True)
+    profile_image = ProfileImageSerializer()
 
     def get_token(self, obj):
 
@@ -92,6 +106,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     """
     followers_count = serializers.ReadOnlyField()
     following_count = serializers.ReadOnlyField()
+    profile_image = ProfileImageSerializer()
 
     class Meta:
         model = User
@@ -109,6 +124,7 @@ class UserChangeProfileSerializer(serializers.ModelSerializer):
     """
     Change user's profile.
     """
+    profile_image = ProfileImageSerializer(many=True)
 
     def update(self, instance, validated_data):
         if validated_data.get('email'):
@@ -119,6 +135,10 @@ class UserChangeProfileSerializer(serializers.ModelSerializer):
             instance.user_id = validated_data.get('user_id')
         if validated_data.get('password'):
             instance.set_password(validated_data.get('password'))
+        if validated_data.get('is_active'):
+            instance.is_active = validated_data.get('is_active')
+        if validated_data.get('is_deleted'):
+            instance.is_deleted = validated_data.get('is_deleted')
 
         try:
             instance.save()
@@ -135,6 +155,8 @@ class UserChangeProfileSerializer(serializers.ModelSerializer):
             'username',
             'email',
             'password',
+            'is_active',
+            'is_deleted',
         )
 
 
