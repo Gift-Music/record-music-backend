@@ -2,7 +2,7 @@ from django.test import TestCase
 from .documents import Post
 
 import time
-import elasticsearch
+from elasticsearch.exceptions import ConflictError
 
 
 class PostDocumentsTest(TestCase):
@@ -51,7 +51,7 @@ class PostDocumentsTest(TestCase):
         def delete(search):
             try:
                 return search.delete()
-            except elasticsearch.exceptions.ConflictError:
+            except ConflictError:
                 time.sleep(1)
                 return delete(search)
         s = Post.search(index='musicmaps').query('match', author_id=1)

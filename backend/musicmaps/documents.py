@@ -43,3 +43,7 @@ class Post(Document):
         self.created_at= datetime.now()
         self.last_updated_at = datetime.now()
         return super().save(**kwargs)
+
+    def update(self, **kwargs):
+        self.last_updated_at = datetime.now()
+        return super().update(**kwargs)
