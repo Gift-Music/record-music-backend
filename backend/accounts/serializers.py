@@ -70,6 +70,7 @@ def jwt_get_userid_from_payload(payload):
 
 
 class ProfileImageSerializer(serializers.ModelSerializer):
+    file = serializers.ImageField(use_url=True)
 
     class Meta:
         model = ProfileImage
@@ -86,7 +87,6 @@ class UserSerializerWithToken(serializers.ModelSerializer):
 
     token = serializers.SerializerMethodField()
     password = serializers.CharField(write_only=True)
-    profile_image = ProfileImageSerializer()
 
     def get_token(self, obj):
 
@@ -106,7 +106,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
     """
     followers_count = serializers.ReadOnlyField()
     following_count = serializers.ReadOnlyField()
-    profile_image = ProfileImageSerializer()
 
     class Meta:
         model = User
@@ -124,7 +123,6 @@ class UserChangeProfileSerializer(serializers.ModelSerializer):
     """
     Change user's profile.
     """
-    profile_image = ProfileImageSerializer(many=True)
 
     def update(self, instance, validated_data):
         if validated_data.get('email'):
@@ -139,6 +137,8 @@ class UserChangeProfileSerializer(serializers.ModelSerializer):
             instance.is_active = validated_data.get('is_active')
         if validated_data.get('is_deleted'):
             instance.is_deleted = validated_data.get('is_deleted')
+        if validated_data.get('profile_image'):
+            instance.profile_image = validated_data.get('profile_image')
 
         try:
             instance.save()

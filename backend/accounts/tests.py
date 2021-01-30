@@ -1,6 +1,12 @@
+import os
+import tempfile
 from collections import OrderedDict
 from datetime import date
 
+from PIL import Image
+from django.core.files.images import ImageFile
+from django.core.files.temp import NamedTemporaryFile
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils.http import base36_to_int
 from rest_framework.exceptions import ErrorDetail
 from rest_framework.test import APITestCase, APIClient
@@ -8,7 +14,7 @@ from rest_framework.test import APITestCase, APIClient
 from .authentication import *
 from .views import *
 from django.core import mail
-from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.files import File
 from django.contrib.auth.tokens import default_token_generator, PasswordResetTokenGenerator
 
 from .models import *
@@ -389,6 +395,22 @@ class BaseUserAccountViewTest(APITestCase):
 
         self.assertFalse(token_generator.check_token(user, token))
 
+    def test_user_profile(self):
+        client = APIClient()
+        user = User.objects.get(user_id='test')
+        client.force_authenticate(user=user)
+
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        print(image)
+        file_root = {
+            'file': r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg'
+        }
+        response = client.post('/accounts/test/profile/profileimage/', file_root)
+
+        print(response.data)
+
 
 class SubUserAccountViewTest(TestCase):
     """
@@ -537,6 +559,39 @@ class SubUserAccountViewTest(TestCase):
         self.assertEqual(True, serializer.is_valid())
         self.assertIsNotNone(serializer.validated_data)
         self.assertEqual('test123', serializer.validated_data.get('password'))
+
+    def test_save_image_into_model(self):
+        """
+        location of media directory: ...\record-music-backend\backend\backend\media
+        """
+
+        image_model = ProfileImage()
+        image = ImageFile(open(r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg', 'rb'))
+        image_model.file.save("testimage", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
+
+        self.assertIsNotNone(ProfileImage.objects.all())
+        self.assertEqual('test', image_model.creator.user_id)
+
+    def test_upload_image_into_model(self):
+        """
+        Calls Permission denied [Error no. 13], and I cannot find solution of this.
+        Tried to find a solution for three days, but I failed :(
+        """
+
+        image_model = ProfileImage()
+
+        """
+        Error occurs in next line.
+        """
+        image_model.file = SimpleUploadedFile(name='test_image.jpg', content=open(os.path.join(settings.MEDIA_ROOT), 'rb').read(),
+                                              content_type='image/jpeg')
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
+
+        self.assertIsNotNone(ProfileImage.objects.all())
+        self.assertEqual('test', image_model.creator.user_id)
 
 
 class UserAccountFailTest(TestCase):

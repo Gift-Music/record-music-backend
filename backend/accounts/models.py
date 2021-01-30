@@ -8,6 +8,8 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 
+from backend.settings import MEDIA_ROOT
+
 
 class UserManager(BaseUserManager):
     use_in_migrations = True
@@ -114,6 +116,9 @@ class CustomPermissionsMixin(models.Model):
 
 
 class User(AbstractBaseUser, CustomPermissionsMixin):
+    profile_image = models.ImageField(
+        null=True, blank=True, upload_to=MEDIA_ROOT
+    )
     email = models.EmailField(
         verbose_name=_('Email address'),
         max_length=255,
@@ -142,10 +147,6 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         verbose_name=_('Date joined'),
         default=timezone.now
     )
-    # profile_image = ArrayField(
-    #     models.ImageField(upload_to='profile_images/'), null=True, blank=True
-    # )
-    # profile_image = models.ImageField(upload_to='profile_images/', null=True, blank=True)
     follows = models.ManyToManyField(
         "self",
         through="Follow",
@@ -206,10 +207,10 @@ class Follow(models.Model):
 
 
 class ProfileImage(models.Model):
-    file = models.ImageField()
+    file = models.ImageField(null=True, upload_to=MEDIA_ROOT)
     creator = models.ForeignKey(
         User,
-        related_name='profile_image',
+        related_name='profile_images_uploaded',
         on_delete=models.CASCADE,
         null=True,
     )

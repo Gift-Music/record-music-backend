@@ -2,10 +2,12 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.mail import EmailMessage
+from django.http import HttpResponse
 from django.utils.encoding import force_text, force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.translation import ugettext_lazy as _
 from django.utils import timezone
+from django.views import View
 
 from rest_framework import permissions
 from rest_framework.views import APIView
@@ -40,6 +42,7 @@ def send_verification_email(request, user, email, link):
 
     Usage : Register new account, Checking Author of the logged account is owner.
     """
+
     def message(domain, uidb64, token):
         activation_link = f"{link}/{uidb64}/{token}"
         return f"아래 링크를 클릭하면 회원 인증이 완료됩니다.\n\n" \
@@ -62,6 +65,7 @@ class UserProfile(APIView):
     todo : changing profile image
     """
     authentication_classes = (authentication.CustomJWTAuthentication,)
+    serializer_class = UserProfileSerializer
 
     def get_user(self, user_id):
         try:
@@ -119,7 +123,7 @@ class UserProfile(APIView):
                             "profile_image": serializer.data.get('profile_image'),
                             "user_id": serializer.data.get('user_id'),
                             "email": serializer.data.get('email')
-                            }
+                        }
                         }
 
                 return Response(data=data, status=status.HTTP_200_OK)
@@ -131,16 +135,52 @@ class UserProfile(APIView):
 
 class ProfileImageView(APIView):
     authentication_classes = (authentication.CustomJWTAuthentication,)
+    serializer_class = ProfileImageSerializer
 
     def get(self, request, user_id):
         """
-        Get user's profile image
+        Get uploaded user's profile image
         """
-        pass
+        user = User.objects.get(user_id=user_id)
+        # try:
+        #     images = ProfileImage.objects.get(creator=user)
+        # except ProfileImage.DoesNotExist:
+        #     images = []
+
+        uploaded_images = []
+
+        # uploaded_images.append(images)
+
+        serializer = ProfileImageSerializer(data=uploaded_images, many=True)
+
+        if serializer.is_valid():
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+        else:
+            return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def post(self, request, user_id):
         """
-        Save user's profile image
+        Upload user's profile image and save it.
+        """
+        user = User.objects.get(user_id=user_id)
+
+        serializer = ProfileImageSerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save(creator=user)
+            user.profile_image = serializer.validated_data.get('profile_image')
+            user.save()
+
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+        else:
+            return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request, user_id):
+        """
+        Change profile image to one of the uploaded profile images.
+        request = pk of the profile images
         """
         pass
 
@@ -484,12 +524,38 @@ class UserRegister(APIView):
         return user
 
 
-class UserActivate(APIView):
-    """
-    response:
-        {"isSuccess": Boolean}
-    """
-    permission_classes = (permissions.AllowAny,)
+# class UserActivate(APIView):
+#     """
+#     response:
+#         {"isSuccess": Boolean}
+#     """
+#     permission_classes = (permissions.AllowAny,)
+#
+#     def get(self, *args, **kwargs):
+#         return self.post(*args, **kwargs)
+#
+#     def post(self, request, uidb64, token):
+#         uid = force_text(urlsafe_base64_decode(uidb64))
+#         user = User.objects.get(user_pk=uid)
+#
+#         if user is not None and default_token_generator.check_token(user=user, token=token):
+#             user.is_active = True
+#             user.save()
+#
+#             return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
+#
+#         elif default_token_generator.check_token(user=user, token=token) is False:
+#             send_verification_email(request, user=user, email=user.email,
+#                                     link='http://127.0.0.1:9080/accounts/register/activate')
+#
+#             return Response(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
+#                             status=status.HTTP_403_FORBIDDEN)
+#
+#         else:
+#             return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserActivate(View):
 
     def get(self, *args, **kwargs):
         return self.post(*args, **kwargs)
@@ -502,17 +568,22 @@ class UserActivate(APIView):
             user.is_active = True
             user.save()
 
-            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
-
+            msg = "인증 되었습니다."
+            # return HttpResponse(data=msg, status=status.HTTP_200_OK)
+            return HttpResponse(msg)
         elif default_token_generator.check_token(user=user, token=token) is False:
             send_verification_email(request, user=user, email=user.email,
                                     link='http://127.0.0.1:9080/accounts/register/activate')
 
-            return Response(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
-                            status=status.HTTP_403_FORBIDDEN)
+            msg = "인증 메일이 만료되었습니다. 새로운 인증 메일을 확인해 주세요."
+            # return HttpResponse(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
+            #                     status=status.HTTP_403_FORBIDDEN)
+            return HttpResponse(msg)
 
         else:
-            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+            msg = "인증에 실패하였습니다."
+            # return HttpResponse(data=msg, status=status.HTTP_400_BAD_REQUEST)
+            return HttpResponse(msg)
 
 
 class CheckUser(APIView):
