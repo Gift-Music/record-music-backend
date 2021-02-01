@@ -116,6 +116,8 @@ class CustomPermissionsMixin(models.Model):
 
 
 class User(AbstractBaseUser, CustomPermissionsMixin):
+
+    # Current profile image
     profile_image = models.ImageField(
         null=True, blank=True, upload_to=MEDIA_ROOT
     )
@@ -141,6 +143,10 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
     )
     is_social = models.BooleanField(
         verbose_name=_('Is social account'),
+        default=False
+    )
+    is_private = models.BooleanField(
+        verbose_name=_('Is private account'),
         default=False
     )
     date_joined = models.DateTimeField(
@@ -210,7 +216,6 @@ class ProfileImage(models.Model):
     file = models.ImageField(null=True, upload_to=MEDIA_ROOT)
     creator = models.ForeignKey(
         User,
-        related_name='profile_images_uploaded',
         on_delete=models.CASCADE,
         null=True,
     )
@@ -220,3 +225,6 @@ class ProfileImage(models.Model):
     updated_at = models.DateTimeField(
         auto_now=True,
     )
+
+    class Meta:
+        verbose_name = 'profile_images'

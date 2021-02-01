@@ -1,5 +1,6 @@
 import os
 import tempfile
+from base64 import b64encode, b64decode
 from collections import OrderedDict
 from datetime import date
 
@@ -7,6 +8,7 @@ from PIL import Image
 from django.core.files.images import ImageFile
 from django.core.files.temp import NamedTemporaryFile
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db.models import ImageField
 from django.utils.http import base36_to_int
 from rest_framework.exceptions import ErrorDetail
 from rest_framework.test import APITestCase, APIClient
@@ -135,6 +137,37 @@ class ModelTest(TestCase):
                                      ('email', 'test@example.com'), ('followers_count', 1), ('following_count', 2)])
 
         self.assertEqual([expect_result], serializer.data)
+
+    def test_profile_image_model(self):
+        """
+        location of media directory: ...\record-music-backend\backend\backend\media
+        """
+
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
+
+        self.assertIsNotNone(ProfileImage.objects.all())
+        self.assertEqual('test', image_model.creator.user_id)
+
+    def test_profile_image_model_2(self):
+        user = User.objects.get(user_id='test')
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+
+        model = ProfileImage()
+        model.file.save(f"{user.user_id}_{image.name[-5:0]}.jpg", image)
+        model.creator = User.objects.get(user_id='test')
+        model.save()
+
+        self.assertIsNotNone(user.profileimage_set.all())
+        self.assertIsNotNone(ProfileImage.objects.all())
+        self.assertEqual(1, ProfileImage.objects.first().id)
 
     def test_upload_musicmaps(self):
         pass
@@ -354,17 +387,17 @@ class BaseUserAccountViewTest(APITestCase):
         user = User.objects.get(user_id='test')
         client.force_authenticate(user=user)
 
-        response = client.put('/accounts/test/profile/delete/')
+        response = client.delete('/accounts/test/profile/')
         self.assertEqual(status.HTTP_200_OK, response.status_code)
 
         user = User.objects.get(user_id='test')
         self.assertEqual(False, user.is_active)
         self.assertIsNotNone(user.is_deleted)
 
-        response = client.put('/accounts/test2/profile/delete/')
+        response = client.delete('/accounts/test2/profile/')
         self.assertEqual(status.HTTP_401_UNAUTHORIZED, response.status_code)
 
-        response = client.put('/accounts/bnbong/profile/delete/')
+        response = client.delete('/accounts/bnbong/profile/')
         self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
 
     def test_check_user(self):
@@ -395,21 +428,73 @@ class BaseUserAccountViewTest(APITestCase):
 
         self.assertFalse(token_generator.check_token(user, token))
 
-    def test_user_profile(self):
+    def test_profile_image(self):
         client = APIClient()
         user = User.objects.get(user_id='test')
         client.force_authenticate(user=user)
 
+        response = client.get('/accounts/test/profile/profileimage/')
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual([], response.data)
+
+        image_model = ProfileImage()
         image = ImageFile(open(
             r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
             'rb'))
-        print(image)
-        file_root = {
-            'file': r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg'
-        }
-        response = client.post('/accounts/test/profile/profileimage/', file_root)
+        image_model.file.save("testimage1.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
 
-        print(response.data)
+        response = client.get('/accounts/test/profile/profileimage/')
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertIsNot([], response.data)
+
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage2.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
+
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage3.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
+
+        request = {
+            'file': None
+        }
+
+        response = client.post('/accounts/test/profile/profileimage/', request)
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual({'isSuccess': True}, response.data)
+
+        request = {
+            'id': 1
+        }
+
+        response = client.put('/accounts/test/profile/profileimage/', request)
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual({'isSuccess': True}, response.data)
+        self.assertIsNotNone(user.profile_image)
+
+        request = {
+            'id': 1
+        }
+
+        response = client.delete('/accounts/test/profile/profileimage/', request)
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(2, ProfileImage.objects.first().id)
+        self.assertEqual(None, client.get('/accounts/test/profile/').data.get('profile_image'))
 
 
 class SubUserAccountViewTest(TestCase):
@@ -560,19 +645,17 @@ class SubUserAccountViewTest(TestCase):
         self.assertIsNotNone(serializer.validated_data)
         self.assertEqual('test123', serializer.validated_data.get('password'))
 
-    def test_save_image_into_model(self):
-        """
-        location of media directory: ...\record-music-backend\backend\backend\media
-        """
-
+    def test_change_profile_image_and_upload(self):
         image_model = ProfileImage()
-        image = ImageFile(open(r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg', 'rb'))
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
         image_model.file.save("testimage", image)
-        image_model.creator = User.objects.get(user_id='test')
-        image_model.save()
+        user = User.objects.get(user_id='test')
+        user.profile_image = image_model.file
+        user.save()
 
-        self.assertIsNotNone(ProfileImage.objects.all())
-        self.assertEqual('test', image_model.creator.user_id)
+        self.assertIsNotNone(user.profile_image)
 
     def test_upload_image_into_model(self):
         """
@@ -593,6 +676,26 @@ class SubUserAccountViewTest(TestCase):
         self.assertIsNotNone(ProfileImage.objects.all())
         self.assertEqual('test', image_model.creator.user_id)
 
+    def test_check_profile_image(self):
+        client = APIClient()
+        user = User.objects.get(user_id='test')
+        client.force_authenticate(user=user)
+
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage1.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
+
+        user.profile_image = ProfileImage.objects.get(id=1).file
+        user.save()
+
+        self.assertIsNotNone(user.profile_image)
+
+        instance = ProfileImage.objects.get(id=1)
+        self.assertEqual(True, instance.file == user.profile_image)
 
 class UserAccountFailTest(TestCase):
     """

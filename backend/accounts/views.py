@@ -65,7 +65,6 @@ class UserProfile(APIView):
     todo : changing profile image
     """
     authentication_classes = (authentication.CustomJWTAuthentication,)
-    serializer_class = UserProfileSerializer
 
     def get_user(self, user_id):
         try:
@@ -113,8 +112,7 @@ class UserProfile(APIView):
                 if cpserializer.validated_data.get('password') and user.is_social is True:
                     return Response({"detail": _("Social account cannot change password.")},
                                     status=status.HTTP_403_FORBIDDEN)
-                cpserializer.update(validated_data=cpserializer.validated_data, instance=user)
-                user = cpserializer.save()
+                user = cpserializer.update(validated_data=cpserializer.validated_data, instance=user)
 
                 serializer = UserSerializerWithToken(user)
                 user_token = serializer.data.get('token')
@@ -123,7 +121,7 @@ class UserProfile(APIView):
                             "profile_image": serializer.data.get('profile_image'),
                             "user_id": serializer.data.get('user_id'),
                             "email": serializer.data.get('email')
-                        }
+                            }
                         }
 
                 return Response(data=data, status=status.HTTP_200_OK)
@@ -132,61 +130,34 @@ class UserProfile(APIView):
 
                 return Response(data=cpserializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    def delete(self, request, user_id, format=None):
+        req_user = request.user
 
-class ProfileImageView(APIView):
-    authentication_classes = (authentication.CustomJWTAuthentication,)
-    serializer_class = ProfileImageSerializer
+        user = self.get_user(user_id)
 
-    def get(self, request, user_id):
-        """
-        Get uploaded user's profile image
-        """
-        user = User.objects.get(user_id=user_id)
-        # try:
-        #     images = ProfileImage.objects.get(creator=user)
-        # except ProfileImage.DoesNotExist:
-        #     images = []
+        if user is None:
 
-        uploaded_images = []
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
 
-        # uploaded_images.append(images)
+        elif user.user_id != req_user.user_id:
 
-        serializer = ProfileImageSerializer(data=uploaded_images, many=True)
-
-        if serializer.is_valid():
-            return Response(data=serializer.data, status=status.HTTP_200_OK)
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
 
         else:
-            return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def post(self, request, user_id):
-        """
-        Upload user's profile image and save it.
-        """
-        user = User.objects.get(user_id=user_id)
-
-        serializer = ProfileImageSerializer(data=request.data)
-
-        if serializer.is_valid():
-            serializer.save(creator=user)
-            user.profile_image = serializer.validated_data.get('profile_image')
+            user = User.objects.get(user_id=user_id)
+            user.is_active = False
+            user.is_deleted = timezone.now()
             user.save()
 
-            return Response(data=serializer.data, status=status.HTTP_200_OK)
-
-        else:
-            return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def put(self, request, user_id):
-        """
-        Change profile image to one of the uploaded profile images.
-        request = pk of the profile images
-        """
-        pass
+            return Response({"detail": _("User decativated.")}, status=status.HTTP_200_OK)
 
 
-class UserDelete(APIView):
+class UserProfileImage(APIView):
+    """
+    View for uploaded profile images.
+    """
     authentication_classes = (authentication.CustomJWTAuthentication,)
+    serializer_class = ProfileImageSerializer
 
     def get_user(self, user_id):
         try:
@@ -195,27 +166,101 @@ class UserDelete(APIView):
         except User.DoesNotExist:
             return None
 
-    # User withdrawal
-    def put(self, request, user_id):
+    def get(self, request, user_id):
         req_user = request.user
 
         user = self.get_user(user_id)
 
         if user is None:
 
-            return Response({"isSuccess": False}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         elif user.user_id != req_user.user_id:
 
-            return Response({"isSuccess": False}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        profile_images = user.profileimage_set.all()
+        serializer = ProfileImageSerializer(profile_images, many=True)
+
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, user_id):
+        req_user = request.user
+
+        user = self.get_user(user_id)
+
+        if user is None:
+
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.user_id != req_user.user_id:
+
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user = User.objects.get(user_id=user_id)
+        serializer = ProfileImageSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.create_profile_image(user, serializer.validated_data)
+
+            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
 
         else:
-            user = User.objects.get(user_id=user_id)
-            user.is_active = False
-            user.is_deleted = timezone.now()
+            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request, user_id):
+        """
+        request:
+            pk of the ProfileImage.
+        """
+        req_user = request.user
+
+        user = self.get_user(user_id)
+
+        if user is None:
+
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.user_id != req_user.user_id:
+
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if request.data.get('id'):
+            user.profile_image = ProfileImage.objects.get(id=request.data.get('id')).file
             user.save()
 
-            return Response({"isSuccess": True}, status=status.HTTP_200_OK)
+            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
+
+        else:
+            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, user_id):
+        """
+        request:
+            pk of the ProfileImage.
+        """
+        req_user = request.user
+
+        user = self.get_user(user_id)
+
+        if user is None:
+
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.user_id != req_user.user_id:
+
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if request.data.get('id'):
+            instance = ProfileImage.objects.get(id=request.data.get('id'))
+            if instance.file == user.profile_image:
+                user.profile_image = None
+                user.save()
+            ProfileImage.delete(instance)
+
+            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
+
+        else:
+            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ExploreUsers(APIView):
@@ -524,38 +569,11 @@ class UserRegister(APIView):
         return user
 
 
-# class UserActivate(APIView):
-#     """
-#     response:
-#         {"isSuccess": Boolean}
-#     """
-#     permission_classes = (permissions.AllowAny,)
-#
-#     def get(self, *args, **kwargs):
-#         return self.post(*args, **kwargs)
-#
-#     def post(self, request, uidb64, token):
-#         uid = force_text(urlsafe_base64_decode(uidb64))
-#         user = User.objects.get(user_pk=uid)
-#
-#         if user is not None and default_token_generator.check_token(user=user, token=token):
-#             user.is_active = True
-#             user.save()
-#
-#             return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
-#
-#         elif default_token_generator.check_token(user=user, token=token) is False:
-#             send_verification_email(request, user=user, email=user.email,
-#                                     link='http://127.0.0.1:9080/accounts/register/activate')
-#
-#             return Response(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
-#                             status=status.HTTP_403_FORBIDDEN)
-#
-#         else:
-#             return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
-
-
 class UserActivate(View):
+    """
+    response:
+        msg (string)
+    """
 
     def get(self, *args, **kwargs):
         return self.post(*args, **kwargs)
@@ -569,20 +587,16 @@ class UserActivate(View):
             user.save()
 
             msg = "인증 되었습니다."
-            # return HttpResponse(data=msg, status=status.HTTP_200_OK)
             return HttpResponse(msg)
         elif default_token_generator.check_token(user=user, token=token) is False:
             send_verification_email(request, user=user, email=user.email,
                                     link='http://127.0.0.1:9080/accounts/register/activate')
 
             msg = "인증 메일이 만료되었습니다. 새로운 인증 메일을 확인해 주세요."
-            # return HttpResponse(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
-            #                     status=status.HTTP_403_FORBIDDEN)
             return HttpResponse(msg)
 
         else:
             msg = "인증에 실패하였습니다."
-            # return HttpResponse(data=msg, status=status.HTTP_400_BAD_REQUEST)
             return HttpResponse(msg)
 
 
