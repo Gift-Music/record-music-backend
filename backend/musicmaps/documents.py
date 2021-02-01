@@ -39,6 +39,18 @@ class Post(Document):
             Comment(author_id=author_id, content=content, created_at=datetime.now())
         )
 
+    def delete_comment(self, author_id, index):
+        if self.comments[index].author_id == author_id:
+            self.comments.pop(index)
+        else:
+            return 403
+
+    def update_comment(self, author_id, content, index):
+        if self.comments[index].author_id == author_id:
+            self.comments[index].content = content
+        else:
+            return 403
+
     def save(self, **kwargs):
         self.created_at= datetime.now()
         self.last_updated_at = datetime.now()

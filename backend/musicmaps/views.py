@@ -1,3 +1,5 @@
+import time
+
 from django.core.mail import EmailMessage
 from rest_framework import status
 from rest_framework.views import APIView
@@ -17,8 +19,7 @@ def get_music_maps_geo(coordinates):
                  "lon": coordinates.get("lon")}
         }
     })
-    response = s.execute()
-    return response
+    return s.execute()
 
 
 def create_music_maps(data):
@@ -35,42 +36,68 @@ def create_music_maps(data):
 
 
 def update_music_maps(data):
-    post = Post(id=data['id'])
+    post = Post.get(id=data['id'])
     if post is not None:
-        try:
-            return post.update(
-                open_range=data['open_range'],
-                comments_on=data['comments_on'],
-                content=data['content'],
-                coordinates=data['coordinates'],
-                street_address=data['address'],
-                building_number=data['build_num']
-            )
-        except ConflictError:
-            return update_music_maps(data)
+        return post.update(
+            open_range=data['open_range'],
+            comments_on=data['comments_on'],
+            content=data['content'],
+            coordinates=data['coordinates'],
+            street_address=data['address'],
+            building_number=data['build_num'],
+            retry_on_conflict=5
+        )
     else:
         return 404
 
 
 def delete_music_maps(data):
-    post = Post(id=data['id'])
+    post = Post.get(id=data['id'])
     if post is not None:
         try:
             return post.delete()
         except ConflictError:
+            time.sleep(1)
             return delete_music_maps(data)
     else:
         return 404
 
 
 def add_comment(data):
-    post = Post(id=data['id'])
+    post = Post.get(id=data['id'])
     if post is not None and post.comments_on:
         try:
             post.add_comment(data['author_id'], data['content'])
-            post.save()
+            return post.save()
         except ConflictError:
-            return update_music_maps(data)
+            time.sleep(1)
+            return add_comment(data)
+    else:
+        return 404
+
+
+def update_comment(data):
+    post = Post.get(id=data['id'])
+    if post is not None:
+        try:
+            post.update_comment(data['author_id'], data['content'], data['index'])
+            return post.save()
+        except ConflictError:
+            time.sleep(1)
+            return update_comment(data)
+    else:
+        return 404
+
+
+def delete_comment(data):
+    post = Post.get(id=data['id'])
+    if post is not None:
+        try:
+            post.delete_comment(data['author_id'], data['index'])
+            return post.save()
+        except ConflictError:
+            time.sleep(1)
+            return delete_comment(data)
     else:
         return 404
 
@@ -92,7 +119,7 @@ class MusicMapsGeo(APIView):
 
 class MusicMaps(APIView):
     """
-    CRUD MusicMaps
+    Create, Update, Delete MusicMaps
     """
     authentication_classes = (CustomJWTAuthentication,)
 
@@ -115,12 +142,33 @@ class MusicMaps(APIView):
             return Response(data=result, status=status.HTTP_200_OK)
 
 
-class AddComment(APIView):
+class Comment(APIView):
+    """
+        Create, Update, Delete MusicMaps
+    """
     authentication_classes = (CustomJWTAuthentication,)
 
-    def put(self, request):
+    def post(self, request):
         result = add_comment(request.data)
         if result == 404:
             return Response(data=result, status=status.HTTP_404_NOT_FOUND)
+        else:
+            return Response(data=result, status=status.HTTP_200_OK)
+
+    def put(self, request):
+        result = update_comment(request.data)
+        if result == 404:
+            return Response(data=result, status=status.HTTP_404_NOT_FOUND)
+        elif result == 403:
+            return Response(data=result, status=status.HTTP_403_FORBIDDEN)
+        else:
+            return Response(data=result, status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        result = delete_comment(request.data)
+        if result == 404:
+            return Response(data=result, status=status.HTTP_404_NOT_FOUND)
+        elif result == 403:
+            return Response(data=result, status=status.HTTP_403_FORBIDDEN)
         else:
             return Response(data=result, status=status.HTTP_200_OK)

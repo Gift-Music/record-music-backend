@@ -47,6 +47,15 @@ class PostDocumentsTest(TestCase):
         post.save()
         self.assertEquals(post.comments[0].content, "이것이 댓글")
 
+    def test_update_comment(self):
+        s = Post.search(index='musicmaps')
+        response = s.execute()
+        post_id = response[0].meta.id
+        post = Post.get(id=post_id)
+        post.update_comment(author_id=1, content="이것이 댓글", index=1)
+        post.update()
+        self.assertEquals(post.comments[0].content, "이것이 댓글")
+
     def test_delete_post(self):
         def delete(search):
             try:
