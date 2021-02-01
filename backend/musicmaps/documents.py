@@ -1,5 +1,5 @@
 from datetime import datetime
-from elasticsearch_dsl import Document, Date, Nested, Boolean, analyzer, InnerDoc, Completion, Keyword, Text, Integer,GeoPoint
+from elasticsearch_dsl import Document, Date, Nested, Boolean, InnerDoc, Text, Integer, GeoPoint
 
 
 class Comment(InnerDoc):
@@ -11,23 +11,14 @@ class Comment(InnerDoc):
         return datetime.now() - self.created_at
 
 
-class Location(InnerDoc):
-    coordinates = GeoPoint(required=True)
-    street_address = Text(fields={'raw': Keyword()}, required=True)
-    building_number = Integer(required=True)
-
-
 class Music(InnerDoc):
-    artists = Text(fields={'raw': Keyword()})
-    name = Text(fields={'raw': Keyword()})
-    melon_song_id = Integer()
-    genie_song_id = Integer()
+    artists = Text()
+    name = Text()
     yt_song_id = Text()
 
 
 class Post(Document):
     images = Text(multi=True)
-    location = Nested(Location)
     created_at = Date()
     last_updated_at = Date()
     open_range = Integer(required=True)
@@ -36,6 +27,9 @@ class Post(Document):
     comments = Nested(Comment)
     playlist = Nested(Music)
     content = Text()
+    coordinates = GeoPoint(required=True)
+    street_address = Text(required=True)
+    building_number = Integer(required=True)
 
     class Index:
         name = 'musicmaps'
@@ -45,8 +39,21 @@ class Post(Document):
             Comment(author_id=author_id, content=content, created_at=datetime.now())
         )
 
+    def delete_comment(self, author_id, index):
+        if self.comments[index].author_id == author_id:
+            self.comments.pop(index)
+        else:
+            return 403
+
+    def update_comment(self, author_id, content, index):
+        if self.comments[index].author_id == author_id:
+            self.comments[index].content = content
+        else:
+            return 403
+
     def save(self, **kwargs):
         self.created_at= datetime.now()
+        self.last_updated_at = datetime.now()
         return super().save(**kwargs)
 
     def update(self, **kwargs):
