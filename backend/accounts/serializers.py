@@ -69,20 +69,6 @@ def jwt_get_userid_from_payload(payload):
     return payload.get('user_id')
 
 
-class ProfileImageSerializer(serializers.ModelSerializer):
-    file = serializers.ImageField(use_url=True)
-
-    class Meta:
-        model = ProfileImage
-        fields = (
-            'id',
-            'file',
-            'creator',
-            'created_at',
-            'updated_at',
-        )
-
-
 class UserSerializerWithToken(serializers.ModelSerializer):
 
     token = serializers.SerializerMethodField()
@@ -116,6 +102,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'email',
             'followers_count',
             'following_count',
+            'is_private',
         )
 
 

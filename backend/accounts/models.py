@@ -3,12 +3,12 @@ from django.contrib.auth.models import (
     _user_has_module_perms
 )
 from django.db import models
-from django.contrib.postgres.fields import ArrayField
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 
 from backend.settings import MEDIA_ROOT
+from music import models as music_model
 
 
 class UserManager(BaseUserManager):
@@ -163,6 +163,11 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         null=True,
         blank=True,
     )
+    verify_code = models.CharField(
+        null=True,
+        max_length=300,
+        default=None,
+    )
 
     objects = UserManager()
 
@@ -228,3 +233,20 @@ class ProfileImage(models.Model):
 
     class Meta:
         verbose_name = 'profile_images'
+
+
+class Playlist(models.Model):
+    playlist = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='playlist_id',
+    )
+    music = models.ManyToManyField(
+        music_model.Music,
+        blank=True,
+        related_name='music_id'
+    )
+
+    class Meta:
+        db_table = 'playlist'
+        verbose_name = 'playlist'

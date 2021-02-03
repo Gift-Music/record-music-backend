@@ -10,6 +10,7 @@ urlpatterns = [
 
     path('login/', views.UserLogin.as_view()),
     path('register/', views.UserRegister.as_view()),
+    path('register/activate/', views.UserActivate.as_view(), name='activate_user'),
 
     path('verify/', views.UserTokenVerify.as_view()),
     path('refresh/', views.UserTokenRefresh.as_view()),
@@ -22,9 +23,6 @@ urlpatterns = [
     path('<user_id>/unfollow/', views.UnFollowUser.as_view(), name='unfollow_user'),
     path('<user_id>/followers/', views.UserFollowers.as_view(), name='user_followers'),
     path('<user_id>/following/', views.UserFollowing.as_view(), name='user_following'),
-    path('<user_id>/checkuser/', views.CheckUser.as_view(), name='user_check'),
-    path('checkuser/redirect/<str:uidb64>/<str:token>', views.VerifyUser.as_view(), name='user_check_redirect'),
-    path('register/activate/<str:uidb64>/<str:token>', views.UserActivate.as_view(), name='activate_user'),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

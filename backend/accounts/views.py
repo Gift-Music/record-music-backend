@@ -1,12 +1,9 @@
 from django.contrib.auth import get_user_model
-from django.contrib.auth.tokens import default_token_generator
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.mail import EmailMessage
 from django.http import HttpResponse
-from django.utils.encoding import force_text, force_bytes
-from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.utils.crypto import get_random_string
 from django.utils.translation import ugettext_lazy as _
-from django.utils import timezone
 from django.views import View
 
 from rest_framework import permissions
@@ -36,26 +33,27 @@ def user_jwt_encode(user):
     return jwt_encode_handler(payload)
 
 
-def send_verification_email(request, user, email, link):
+def send_verification_email(request, email):
     """
     Send verification email to user.
 
     Usage : Register new account, Checking Author of the logged account is owner.
     """
 
-    def message(domain, uidb64, token):
-        activation_link = f"{link}/{uidb64}/{token}"
-        return f"아래 링크를 클릭하면 회원 인증이 완료됩니다.\n\n" \
-               f"회원 인증 완료 링크 : {activation_link}\n\n감사합니다."
+    def message(domain, code):
+        return f"아래 계정 확인 코드를 입력하면 회원 인증이 완료됩니다.\n\n" \
+               f"계정 확인 코드 : {code}\n\n감사합니다."
 
     subject = '[RecordMusic] 계정 인증'
     current_site = get_current_site(request)
+    current_time = datetime.now()
     domain = current_site.domain
-    uidb64 = urlsafe_base64_encode(force_bytes(user.user_pk))
-    token = default_token_generator.make_token(user=user)  # One-time token for account authentication
-    message = message(domain, uidb64, token)
+    code = get_random_string(length=5)
+    message = message(domain, code)
     mail = EmailMessage(subject, message, to=[email])
     mail.send()
+
+    return code, current_time
 
 
 class UserProfile(APIView):
@@ -494,8 +492,9 @@ class UserLogin(APIView):
                                 , status=status.HTTP_401_UNAUTHORIZED)
             if user and user.is_active is False:
                 if email is not None:
-                    send_verification_email(request, user, email,
-                                            link='http://127.0.0.1:9080/accounts/register/activate')
+                    code, send_time = send_verification_email(request, email)
+                    user.verify_code = f'{code},{send_time}'
+                    user.save()
 
                     return Response(data={"detail": _("Please verify this account. Verification Email Sent.")}
                                     , status=status.HTTP_403_FORBIDDEN)
@@ -541,8 +540,9 @@ class UserRegister(APIView):
             email = user.get_user_email()
 
             if user.is_active is False and email is not None:
-                send_verification_email(request, user, email,
-                                        link='http://127.0.0.1:9080/accounts/register/activate')
+                code, send_time = send_verification_email(request, email)
+                user.verify_code = f'{code},{send_time}'
+                user.save()
 
                 return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_200_OK)
 
@@ -552,8 +552,9 @@ class UserRegister(APIView):
             user = User.objects.get(user_id=request.data.get('user_id'))
             if user and user.is_active is False:
                 if user.email is not None:
-                    send_verification_email(request, user, user.email,
-                                            link='http://127.0.0.1:9080/accounts/register/activate')
+                    code, send_time = send_verification_email(request, user.email)
+                    user.verify_code = f'{code},{send_time}'
+                    user.save()
 
                     return Response(data={"detail": _("You have not verify this account. Verification Email Sent.")}
                                     , status=status.HTTP_403_FORBIDDEN)
@@ -578,73 +579,35 @@ class UserActivate(View):
     def get(self, *args, **kwargs):
         return self.post(*args, **kwargs)
 
-    def post(self, request, uidb64, token):
-        uid = force_text(urlsafe_base64_decode(uidb64))
-        user = User.objects.get(user_pk=uid)
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        code = request.data.get('code')
 
-        if user is not None and default_token_generator.check_token(user=user, token=token):
-            user.is_active = True
+        user = User.objects.get(user_id=user_id)
+        user_code = user.verify_code.split(',')[0]
+        send_time = user.verify_code.split(',')[0]
+
+        if user is not None and user_code is not None:
+            if user_code == code:
+                user.is_active = True
+                user.save()
+
+                msg = "인증 되었습니다."
+                return HttpResponse(msg, status=status.HTTP_200_OK)
+
+            else:
+                msg = "코드 번호가 다릅니다."
+                return HttpResponse(msg, status=status.HTTP_400_BAD_REQUEST)
+
+        elif (datetime.now() - send_time).days >= 1:
+            email = user.get_user_email()
+            code, send_time = send_verification_email(request, email)
+            user.verify_code = f'{code},{send_time}'
             user.save()
 
-            msg = "인증 되었습니다."
-            return HttpResponse(msg)
-        elif default_token_generator.check_token(user=user, token=token) is False:
-            send_verification_email(request, user=user, email=user.email,
-                                    link='http://127.0.0.1:9080/accounts/register/activate')
-
             msg = "인증 메일이 만료되었습니다. 새로운 인증 메일을 확인해 주세요."
-            return HttpResponse(msg)
+            return HttpResponse(msg, status=status.HTTP_403_FORBIDDEN)
 
         else:
             msg = "인증에 실패하였습니다."
-            return HttpResponse(msg)
-
-
-class CheckUser(APIView):
-    """
-    Confirming that the user is himself by sending confirmation email.
-    Can use it when user authorization is needed before change password.
-
-    PW change suggestion : The process of changing password is recommended to be implemented
-    as a process of identifying user themselves via email and initializing password into new password
-    rather than the process of writing old password and writing new password.
-
-    This is because accounts created with social accounts have random passwords,
-    and even the owner of social accounts does not know the password of accounts stored in the DB.
-    """
-    authentication_classes = (authentication.CustomJWTAuthentication,)
-
-    def post(self, request, user_id):
-        user = User.objects.get(user_id=user_id)
-        email = user.get_user_email()
-
-        send_verification_email(request, user=user, email=email,
-                                link='http://127.0.0.1:9080/accounts/checkuser/redirect')
-
-        return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_200_OK)
-
-
-class VerifyUser(APIView):
-    """
-    response:
-        {"isSuccess": Boolean}
-    """
-    permission_classes = (permissions.AllowAny,)
-
-    def get(self, request, uidb64, token):
-        uid = force_text(urlsafe_base64_decode(uidb64))
-        user = User.objects.get(user_pk=uid)
-        request.user = user
-        if user is not None and default_token_generator.check_token(user=user, token=token):
-
-            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
-
-        elif default_token_generator.check_token(user=user, token=token) is False:
-            send_verification_email(request, user=user, email=user.email,
-                                    link='http://127.0.0.1:9080/accounts/checkuser/redirect')
-
-            return Response(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
-                            status=status.HTTP_403_FORBIDDEN)
-
-        else:
-            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+            return HttpResponse(msg, status=status.HTTP_404_NOT_FOUND)
