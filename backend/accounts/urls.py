@@ -10,6 +10,7 @@ urlpatterns = [
 
     path('login/', views.UserLogin.as_view()),
     path('register/', views.UserRegister.as_view()),
+    path('register/activate/', views.UserActivate.as_view(), name='activate_user'),
 
     path('verify/', views.UserTokenVerify.as_view()),
     path('refresh/', views.UserTokenRefresh.as_view()),
@@ -17,14 +18,11 @@ urlpatterns = [
     path('search/<user_id>/', views.Search.as_view(), name='search'),
     path('explore/', views.ExploreUsers.as_view(), name='explore_user'),
     path('<user_id>/profile/', views.UserProfile.as_view(), name='user_profile'),
-    path('<user_id>/profile/delete/', views.UserDelete.as_view(), name='user_withdrawal'),
+    path('<user_id>/profile/profileimage/', views.UserProfileImage.as_view(), name='user_profile_images'),
     path('<user_id>/follow/', views.FollowUser.as_view(), name='follow_user'),
     path('<user_id>/unfollow/', views.UnFollowUser.as_view(), name='unfollow_user'),
     path('<user_id>/followers/', views.UserFollowers.as_view(), name='user_followers'),
     path('<user_id>/following/', views.UserFollowing.as_view(), name='user_following'),
-    path('<user_id>/checkuser/', views.CheckUser.as_view(), name='user_check'),
-    path('checkuser/redirect/<str:uidb64>/<str:token>', views.VerifyUser.as_view(), name='user_check_redirect'),
-    path('register/activate/<str:uidb64>/<str:token>', views.UserActivate.as_view(), name='activate_user'),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

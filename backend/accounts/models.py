@@ -3,10 +3,12 @@ from django.contrib.auth.models import (
     _user_has_module_perms
 )
 from django.db import models
-from django.contrib.postgres.fields import ArrayField
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
+
+from backend.settings import MEDIA_ROOT
+from music import models as music_model
 
 
 class UserManager(BaseUserManager):
@@ -114,6 +116,11 @@ class CustomPermissionsMixin(models.Model):
 
 
 class User(AbstractBaseUser, CustomPermissionsMixin):
+
+    # Current profile image
+    profile_image = models.ImageField(
+        null=True, blank=True, upload_to=MEDIA_ROOT
+    )
     email = models.EmailField(
         verbose_name=_('Email address'),
         max_length=255,
@@ -138,14 +145,14 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         verbose_name=_('Is social account'),
         default=False
     )
+    is_private = models.BooleanField(
+        verbose_name=_('Is private account'),
+        default=False
+    )
     date_joined = models.DateTimeField(
         verbose_name=_('Date joined'),
         default=timezone.now
     )
-    # profile_image = ArrayField(
-    #     models.ImageField(upload_to='profile_images/'), null=True, blank=True
-    # )
-    # profile_image = models.ImageField(upload_to='profile_images/', null=True, blank=True)
     follows = models.ManyToManyField(
         "self",
         through="Follow",
@@ -155,6 +162,11 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         verbose_name=_('Is deleted'),
         null=True,
         blank=True,
+    )
+    verify_code = models.CharField(
+        null=True,
+        max_length=300,
+        default=None,
     )
 
     objects = UserManager()
@@ -206,10 +218,9 @@ class Follow(models.Model):
 
 
 class ProfileImage(models.Model):
-    file = models.ImageField()
+    file = models.ImageField(null=True, upload_to=MEDIA_ROOT)
     creator = models.ForeignKey(
         User,
-        related_name='profile_image',
         on_delete=models.CASCADE,
         null=True,
     )
@@ -219,3 +230,23 @@ class ProfileImage(models.Model):
     updated_at = models.DateTimeField(
         auto_now=True,
     )
+
+    class Meta:
+        verbose_name = 'profile_images'
+
+
+class Playlist(models.Model):
+    playlist = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='playlist_id',
+    )
+    music = models.ManyToManyField(
+        music_model.Music,
+        blank=True,
+        related_name='music_id'
+    )
+
+    class Meta:
+        db_table = 'playlist'
+        verbose_name = 'playlist'

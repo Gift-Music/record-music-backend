@@ -1,11 +1,10 @@
 from django.contrib.auth import get_user_model
-from django.contrib.auth.tokens import default_token_generator
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.mail import EmailMessage
-from django.utils.encoding import force_text, force_bytes
-from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.http import HttpResponse
+from django.utils.crypto import get_random_string
 from django.utils.translation import ugettext_lazy as _
-from django.utils import timezone
+from django.views import View
 
 from rest_framework import permissions
 from rest_framework.views import APIView
@@ -34,25 +33,27 @@ def user_jwt_encode(user):
     return jwt_encode_handler(payload)
 
 
-def send_verification_email(request, user, email, link):
+def send_verification_email(request, email):
     """
     Send verification email to user.
 
     Usage : Register new account, Checking Author of the logged account is owner.
     """
-    def message(domain, uidb64, token):
-        activation_link = f"{link}/{uidb64}/{token}"
-        return f"아래 링크를 클릭하면 회원 인증이 완료됩니다.\n\n" \
-               f"회원 인증 완료 링크 : {activation_link}\n\n감사합니다."
+
+    def message(domain, code):
+        return f"아래 계정 확인 코드를 입력하면 회원 인증이 완료됩니다.\n\n" \
+               f"계정 확인 코드 : {code}\n\n감사합니다."
 
     subject = '[RecordMusic] 계정 인증'
     current_site = get_current_site(request)
+    current_time = datetime.now()
     domain = current_site.domain
-    uidb64 = urlsafe_base64_encode(force_bytes(user.user_pk))
-    token = default_token_generator.make_token(user=user)  # One-time token for account authentication
-    message = message(domain, uidb64, token)
+    code = get_random_string(length=5)
+    message = message(domain, code)
     mail = EmailMessage(subject, message, to=[email])
     mail.send()
+
+    return code, current_time
 
 
 class UserProfile(APIView):
@@ -109,8 +110,7 @@ class UserProfile(APIView):
                 if cpserializer.validated_data.get('password') and user.is_social is True:
                     return Response({"detail": _("Social account cannot change password.")},
                                     status=status.HTTP_403_FORBIDDEN)
-                cpserializer.update(validated_data=cpserializer.validated_data, instance=user)
-                user = cpserializer.save()
+                user = cpserializer.update(validated_data=cpserializer.validated_data, instance=user)
 
                 serializer = UserSerializerWithToken(user)
                 user_token = serializer.data.get('token')
@@ -128,25 +128,34 @@ class UserProfile(APIView):
 
                 return Response(data=cpserializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    def delete(self, request, user_id, format=None):
+        req_user = request.user
 
-class ProfileImageView(APIView):
+        user = self.get_user(user_id)
+
+        if user is None:
+
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.user_id != req_user.user_id:
+
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        else:
+            user = User.objects.get(user_id=user_id)
+            user.is_active = False
+            user.is_deleted = timezone.now()
+            user.save()
+
+            return Response({"detail": _("User decativated.")}, status=status.HTTP_200_OK)
+
+
+class UserProfileImage(APIView):
+    """
+    View for uploaded profile images.
+    """
     authentication_classes = (authentication.CustomJWTAuthentication,)
-
-    def get(self, request, user_id):
-        """
-        Get user's profile image
-        """
-        pass
-
-    def post(self, request, user_id):
-        """
-        Save user's profile image
-        """
-        pass
-
-
-class UserDelete(APIView):
-    authentication_classes = (authentication.CustomJWTAuthentication,)
+    serializer_class = ProfileImageSerializer
 
     def get_user(self, user_id):
         try:
@@ -155,27 +164,101 @@ class UserDelete(APIView):
         except User.DoesNotExist:
             return None
 
-    # User withdrawal
-    def put(self, request, user_id):
+    def get(self, request, user_id):
         req_user = request.user
 
         user = self.get_user(user_id)
 
         if user is None:
 
-            return Response({"isSuccess": False}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         elif user.user_id != req_user.user_id:
 
-            return Response({"isSuccess": False}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        profile_images = user.profileimage_set.all()
+        serializer = ProfileImageSerializer(profile_images, many=True)
+
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, user_id):
+        req_user = request.user
+
+        user = self.get_user(user_id)
+
+        if user is None:
+
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.user_id != req_user.user_id:
+
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user = User.objects.get(user_id=user_id)
+        serializer = ProfileImageSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.create_profile_image(user, serializer.validated_data)
+
+            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
 
         else:
-            user = User.objects.get(user_id=user_id)
-            user.is_active = False
-            user.is_deleted = timezone.now()
+            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request, user_id):
+        """
+        request:
+            pk of the ProfileImage.
+        """
+        req_user = request.user
+
+        user = self.get_user(user_id)
+
+        if user is None:
+
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.user_id != req_user.user_id:
+
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if request.data.get('id'):
+            user.profile_image = ProfileImage.objects.get(id=request.data.get('id')).file
             user.save()
 
-            return Response({"isSuccess": True}, status=status.HTTP_200_OK)
+            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
+
+        else:
+            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, user_id):
+        """
+        request:
+            pk of the ProfileImage.
+        """
+        req_user = request.user
+
+        user = self.get_user(user_id)
+
+        if user is None:
+
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.user_id != req_user.user_id:
+
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if request.data.get('id'):
+            instance = ProfileImage.objects.get(id=request.data.get('id'))
+            if instance.file == user.profile_image:
+                user.profile_image = None
+                user.save()
+            ProfileImage.delete(instance)
+
+            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
+
+        else:
+            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ExploreUsers(APIView):
@@ -409,8 +492,9 @@ class UserLogin(APIView):
                                 , status=status.HTTP_401_UNAUTHORIZED)
             if user and user.is_active is False:
                 if email is not None:
-                    send_verification_email(request, user, email,
-                                            link='http://127.0.0.1:9080/accounts/register/activate')
+                    code, send_time = send_verification_email(request, email)
+                    user.verify_code = f'{code},{send_time}'
+                    user.save()
 
                     return Response(data={"detail": _("Please verify this account. Verification Email Sent.")}
                                     , status=status.HTTP_403_FORBIDDEN)
@@ -456,8 +540,9 @@ class UserRegister(APIView):
             email = user.get_user_email()
 
             if user.is_active is False and email is not None:
-                send_verification_email(request, user, email,
-                                        link='http://127.0.0.1:9080/accounts/register/activate')
+                code, send_time = send_verification_email(request, email)
+                user.verify_code = f'{code},{send_time}'
+                user.save()
 
                 return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_200_OK)
 
@@ -467,8 +552,9 @@ class UserRegister(APIView):
             user = User.objects.get(user_id=request.data.get('user_id'))
             if user and user.is_active is False:
                 if user.email is not None:
-                    send_verification_email(request, user, user.email,
-                                            link='http://127.0.0.1:9080/accounts/register/activate')
+                    code, send_time = send_verification_email(request, user.email)
+                    user.verify_code = f'{code},{send_time}'
+                    user.save()
 
                     return Response(data={"detail": _("You have not verify this account. Verification Email Sent.")}
                                     , status=status.HTTP_403_FORBIDDEN)
@@ -484,82 +570,44 @@ class UserRegister(APIView):
         return user
 
 
-class UserActivate(APIView):
+class UserActivate(View):
     """
     response:
-        {"isSuccess": Boolean}
+        msg (string)
     """
-    permission_classes = (permissions.AllowAny,)
 
     def get(self, *args, **kwargs):
         return self.post(*args, **kwargs)
 
-    def post(self, request, uidb64, token):
-        uid = force_text(urlsafe_base64_decode(uidb64))
-        user = User.objects.get(user_pk=uid)
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        code = request.data.get('code')
 
-        if user is not None and default_token_generator.check_token(user=user, token=token):
-            user.is_active = True
+        user = User.objects.get(user_id=user_id)
+        user_code = user.verify_code.split(',')[0]
+        send_time = user.verify_code.split(',')[0]
+
+        if user is not None and user_code is not None:
+            if user_code == code:
+                user.is_active = True
+                user.save()
+
+                msg = "인증 되었습니다."
+                return HttpResponse(msg, status=status.HTTP_200_OK)
+
+            else:
+                msg = "코드 번호가 다릅니다."
+                return HttpResponse(msg, status=status.HTTP_400_BAD_REQUEST)
+
+        elif (datetime.now() - send_time).days >= 1:
+            email = user.get_user_email()
+            code, send_time = send_verification_email(request, email)
+            user.verify_code = f'{code},{send_time}'
             user.save()
 
-            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
-
-        elif default_token_generator.check_token(user=user, token=token) is False:
-            send_verification_email(request, user=user, email=user.email,
-                                    link='http://127.0.0.1:9080/accounts/register/activate')
-
-            return Response(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
-                            status=status.HTTP_403_FORBIDDEN)
+            msg = "인증 메일이 만료되었습니다. 새로운 인증 메일을 확인해 주세요."
+            return HttpResponse(msg, status=status.HTTP_403_FORBIDDEN)
 
         else:
-            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class CheckUser(APIView):
-    """
-    Confirming that the user is himself by sending confirmation email.
-    Can use it when user authorization is needed before change password.
-
-    PW change suggestion : The process of changing password is recommended to be implemented
-    as a process of identifying user themselves via email and initializing password into new password
-    rather than the process of writing old password and writing new password.
-
-    This is because accounts created with social accounts have random passwords,
-    and even the owner of social accounts does not know the password of accounts stored in the DB.
-    """
-    authentication_classes = (authentication.CustomJWTAuthentication,)
-
-    def post(self, request, user_id):
-        user = User.objects.get(user_id=user_id)
-        email = user.get_user_email()
-
-        send_verification_email(request, user=user, email=email,
-                                link='http://127.0.0.1:9080/accounts/checkuser/redirect')
-
-        return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_200_OK)
-
-
-class VerifyUser(APIView):
-    """
-    response:
-        {"isSuccess": Boolean}
-    """
-    permission_classes = (permissions.AllowAny,)
-
-    def get(self, request, uidb64, token):
-        uid = force_text(urlsafe_base64_decode(uidb64))
-        user = User.objects.get(user_pk=uid)
-        request.user = user
-        if user is not None and default_token_generator.check_token(user=user, token=token):
-
-            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
-
-        elif default_token_generator.check_token(user=user, token=token) is False:
-            send_verification_email(request, user=user, email=user.email,
-                                    link='http://127.0.0.1:9080/accounts/checkuser/redirect')
-
-            return Response(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
-                            status=status.HTTP_403_FORBIDDEN)
-
-        else:
-            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+            msg = "인증에 실패하였습니다."
+            return HttpResponse(msg, status=status.HTTP_404_NOT_FOUND)

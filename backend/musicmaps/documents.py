@@ -52,7 +52,7 @@ class Post(Document):
             return 403
 
     def save(self, **kwargs):
-        self.created_at= datetime.now()
+        self.created_at = datetime.now()
         self.last_updated_at = datetime.now()
         return super().save(**kwargs)
 

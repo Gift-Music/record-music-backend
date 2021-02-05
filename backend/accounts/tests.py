@@ -1,6 +1,10 @@
+import os
 from collections import OrderedDict
 from datetime import date
 
+from django.core.files.images import ImageFile
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils.crypto import get_random_string
 from django.utils.http import base36_to_int
 from rest_framework.exceptions import ErrorDetail
 from rest_framework.test import APITestCase, APIClient
@@ -8,7 +12,6 @@ from rest_framework.test import APITestCase, APIClient
 from .authentication import *
 from .views import *
 from django.core import mail
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.auth.tokens import default_token_generator, PasswordResetTokenGenerator
 
 from .models import *
@@ -60,6 +63,7 @@ class ModelTest(TestCase):
         self.assertEqual('test@example.com', user.get_user_email())
         self.assertEqual(False, user.is_active is False)
         self.assertEqual(None, user.is_deleted)
+        self.assertEqual(None, user.verify_code)
 
     def test_should_create_user_in_model(self):
         another_user = {
@@ -126,9 +130,28 @@ class ModelTest(TestCase):
         serializer = UserProfileSerializer(followers, many=True)
 
         expect_result = OrderedDict([('profile_image', None), ('user_id', 'test'), ('username', 'kimtest'),
-                                     ('email', 'test@example.com'), ('followers_count', 1), ('following_count', 2)])
+                                     ('email', 'test@example.com'), ('followers_count', 1), ('following_count', 2),
+                                     ('is_private', False)])
 
         self.assertEqual([expect_result], serializer.data)
+
+    def test_profile_image_model(self):
+        """
+        location of media directory: ...\record-music-backend\backend\backend\media
+        """
+        user = User.objects.get(user_id='test')
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
+
+        self.assertIsNotNone(ProfileImage.objects.all())
+        self.assertEqual('test', image_model.creator.user_id)
+        self.assertIsNotNone(user.profileimage_set.all())
+        self.assertEqual(1, ProfileImage.objects.first().id)
 
     def test_upload_musicmaps(self):
         pass
@@ -251,9 +274,11 @@ class BaseUserAccountViewTest(APITestCase):
 
         expect_result_1, expect_result_2 = \
             OrderedDict([('profile_image', None), ('user_id', 'test2'), ('username', 'leetest'),
-                         ('email', 'test2@example.com'), ('followers_count', 1), ('following_count', 0)]), \
+                         ('email', 'test2@example.com'), ('followers_count', 1), ('following_count', 0),
+                         ('is_private', False)]), \
             OrderedDict([('profile_image', None), ('user_id', 'test3'), ('username', 'ParkTest'),
-                         ('email', 'test3@example.com'), ('followers_count', 1), ('following_count', 0)])
+                         ('email', 'test3@example.com'), ('followers_count', 1), ('following_count', 0),
+                         ('is_private', False)])
 
         self.assertEqual([expect_result_1, expect_result_2], response.data)
         self.assertEqual(2, Follow.objects.all().count())
@@ -263,7 +288,8 @@ class BaseUserAccountViewTest(APITestCase):
 
         response = client.get('/accounts/test/following/')
         expect_result = OrderedDict([('profile_image', None), ('user_id', 'test2'), ('username', 'leetest'),
-                                     ('email', 'test2@example.com'), ('followers_count', 1), ('following_count', 0)])
+                                     ('email', 'test2@example.com'), ('followers_count', 1), ('following_count', 0),
+                                     ('is_private', False)])
 
         self.assertEqual([expect_result], response.data)
         self.assertEqual(1, Follow.objects.all().count())
@@ -348,46 +374,86 @@ class BaseUserAccountViewTest(APITestCase):
         user = User.objects.get(user_id='test')
         client.force_authenticate(user=user)
 
-        response = client.put('/accounts/test/profile/delete/')
+        response = client.delete('/accounts/test/profile/')
         self.assertEqual(status.HTTP_200_OK, response.status_code)
 
         user = User.objects.get(user_id='test')
         self.assertEqual(False, user.is_active)
         self.assertIsNotNone(user.is_deleted)
 
-        response = client.put('/accounts/test2/profile/delete/')
+        response = client.delete('/accounts/test2/profile/')
         self.assertEqual(status.HTTP_401_UNAUTHORIZED, response.status_code)
 
-        response = client.put('/accounts/bnbong/profile/delete/')
+        response = client.delete('/accounts/bnbong/profile/')
         self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
 
-    def test_check_user(self):
+    def test_profile_image(self):
         client = APIClient()
         user = User.objects.get(user_id='test')
         client.force_authenticate(user=user)
 
-        response = client.post('/accounts/test/checkuser/')
+        response = client.get('/accounts/test/profile/profileimage/')
 
         self.assertEqual(status.HTTP_200_OK, response.status_code)
-        self.assertEqual({'detail': 'Verification Email Sent.'}, response.data)
+        self.assertEqual([], response.data)
 
-    def test_check_user_and_token_over_exp_limit_day(self):
-        user = User.objects.get(user_id='test')
-        uidb64 = urlsafe_base64_encode(force_bytes(user.user_pk))
-        token = default_token_generator.make_token(user=user)
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage1.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
 
-        response = self.client.get(f'/accounts/checkuser/redirect/{uidb64}/{token}')
+        response = client.get('/accounts/test/profile/profileimage/')
 
         self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertIsNot([], response.data)
 
-        class DefTokenGen(PasswordResetTokenGenerator):
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage2.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
 
-            def _today(self):
-                return date.today() + timedelta(days=10)
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage3.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
 
-        token_generator = DefTokenGen()
+        request = {
+            'file': None
+        }
 
-        self.assertFalse(token_generator.check_token(user, token))
+        response = client.post('/accounts/test/profile/profileimage/', request)
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual({'isSuccess': True}, response.data)
+
+        request = {
+            'id': 1
+        }
+
+        response = client.put('/accounts/test/profile/profileimage/', request)
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual({'isSuccess': True}, response.data)
+        self.assertIsNotNone(user.profile_image)
+
+        request = {
+            'id': 1
+        }
+
+        response = client.delete('/accounts/test/profile/profileimage/', request)
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(2, ProfileImage.objects.first().id)
+        self.assertEqual(None, client.get('/accounts/test/profile/').data.get('profile_image'))
 
 
 class SubUserAccountViewTest(TestCase):
@@ -408,26 +474,6 @@ class SubUserAccountViewTest(TestCase):
         }
         User.objects.create_user(user_id=cls.userdata.get('user_id'), username=cls.userdata.get('username'),
                                  email=cls.userdata.get('email'), password=cls.userdata.get('password'))
-
-    def test_should_make_uidb64_and_token(self):
-        user = User.objects.get(user_id='test')
-        uidb64 = urlsafe_base64_encode(force_bytes(user.user_pk))
-        self.assertIsNotNone(uidb64)
-
-        token = default_token_generator.make_token(user)
-        self.assertIsNotNone(token)
-
-    def test_should_decode_uidb64_and_find_user_pk(self):
-        encoded_user = User.objects.get(user_id='test')
-        uidb64 = urlsafe_base64_encode(force_bytes(encoded_user.user_pk))
-        token = default_token_generator.make_token(encoded_user)
-
-        uid = force_text(urlsafe_base64_decode(uidb64))
-        user = User.objects.get(user_pk=uid)
-        check_token = default_token_generator.check_token(user=user, token=token)
-
-        self.assertEqual(1, user.user_pk)
-        self.assertEqual(True, check_token)
 
     def test_check_current_domain(self):
         from django.test.client import RequestFactory
@@ -459,23 +505,19 @@ class SubUserAccountViewTest(TestCase):
             'email': 'test3@example.com',
             'password': 'junhyeok'
         }
-        uidb64 = urlsafe_base64_encode(force_bytes(user.user_pk))
-        token = default_token_generator.make_token(user=user)  # One-time token for account authentication
+        code = get_random_string(length=5)
 
-        def message(domain, uidb64, token, link):
-            activation_link = f"{link}/{uidb64}/{token}"
-            return f"아래 링크를 클릭하면 회원 인증이 완료됩니다.\n\n" \
-                   f"회원 인증 완료 링크 : {activation_link}\n\n감사합니다."
+        def message(domain, code):
+            return f"아래 계정 확인 코드를 입력하면 회원 인증이 완료됩니다.\n\n" \
+                   f"계정 확인 코드 : {code}\n\n감사합니다."
 
-            # should change localhost domain to {domain} after register record-music domain
-            # return f"아래 링크를 클릭하면 회원 인증이 완료됩니다.\n\n" \
-            #                    f"회원 인증 완료 링크 : http://{domain}/accounts/register/activate/{uidb64}/{token}\n\n 감사합니다."
+        self.assertEqual(f"아래 계정 확인 코드를 입력하면 회원 인증이 완료됩니다.\n\n계정 확인 코드 : {code}\n\n감사합니다."
+                         , message(None, code))
 
-        self.assertEqual(f"아래 링크를 클릭하면 회원 인증이 완료됩니다."
-                         f"\n\n회원 인증 완료 링크 : http://127.0.0.1:9080/accounts/register/activate/{uidb64}/{token}\n\n감사합니다."
-                         , message(None, uidb64, token, 'http://127.0.0.1:9080/accounts/register/activate'))
-        self.assertEqual(None, send_verification_email(request, user, user.email,
-                                                       'http://127.0.0.1:9080/accounts/register/activate'))
+        result1, result2 = send_verification_email(request, code)
+
+        self.assertEqual(5, len(result1))
+        self.assertEqual(datetime.today().day, result2.day)
 
     def test_jwt_encoding_and_authentication_check(self):
         user = User.objects.get(user_id='test')
@@ -498,7 +540,8 @@ class SubUserAccountViewTest(TestCase):
         self.assertEqual(False,
                          (default_token_generator._num_days(not_over_day) - ts) > settings.PASSWORD_RESET_TIMEOUT_DAYS)
 
-        y, m, d = 2021, 1, default_token_generator._today().day + 3
+        y, m, d = default_token_generator._today().year, default_token_generator._today().month, \
+                  default_token_generator._today().day + 3
         over_day = date(y, m, d)
 
         self.assertEqual(True,
@@ -537,6 +580,86 @@ class SubUserAccountViewTest(TestCase):
         self.assertEqual(True, serializer.is_valid())
         self.assertIsNotNone(serializer.validated_data)
         self.assertEqual('test123', serializer.validated_data.get('password'))
+
+    def test_change_profile_image_and_upload(self):
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage", image)
+        user = User.objects.get(user_id='test')
+        user.profile_image = image_model.file
+        user.save()
+
+        self.assertIsNotNone(user.profile_image)
+
+    def test_upload_image_into_model(self):
+        """
+        Calls Permission denied [Error no. 13], and I cannot find solution of this.
+        Tried to find a solution for three days, but I failed :(
+        """
+
+        # image_model = ProfileImage()
+
+        """
+        Error occurs in next line.
+        """
+        # image_model.file = SimpleUploadedFile(name='test_image.jpg', content=open(os.path.join(settings.MEDIA_ROOT), 'rb').read(),
+        #                                       content_type='image/jpeg')
+        # image_model.creator = User.objects.get(user_id='test')
+        # image_model.save()
+        #
+        # self.assertIsNotNone(ProfileImage.objects.all())
+        # self.assertEqual('test', image_model.creator.user_id)
+        pass
+
+    def test_check_profile_image(self):
+        """
+        If this test case is run as a single one, it will pass normally.
+        I couldn't find a reason for this.
+        """
+        client = APIClient()
+        user = User.objects.get(user_id='test')
+        client.force_authenticate(user=user)
+
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage1.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
+
+        user.profile_image = ProfileImage.objects.get(id=1).file
+        user.save()
+
+        self.assertIsNotNone(user.profile_image)
+
+        instance = ProfileImage.objects.get(id=1)
+        self.assertEqual(True, instance.file == user.profile_image)
+
+    def test_random_string_generator(self):
+        """
+        This string will be used in email account verification at register
+        """
+        token = get_random_string(length=5)
+
+        self.assertEqual(5, len(token))
+
+        time = datetime.now()
+        nexttime = datetime.now() + timedelta(days=1)
+
+        self.assertEqual(True, (nexttime - time).days == settings.PASSWORD_RESET_TIMEOUT_DAYS)
+
+    def test_should_save_verification_data(self):
+        user = User.objects.get(user_id='test')
+        code = get_random_string(length=5)
+        today = datetime.now()
+        user.verify_code = f'{code},{today}'
+        user.save()
+
+        self.assertEqual(code, user.verify_code.split(',')[0])
+        self.assertEqual(str(today), user.verify_code.split(',')[1])
 
 
 class UserAccountFailTest(TestCase):

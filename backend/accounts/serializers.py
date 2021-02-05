@@ -69,24 +69,10 @@ def jwt_get_userid_from_payload(payload):
     return payload.get('user_id')
 
 
-class ProfileImageSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = ProfileImage
-        fields = (
-            'id',
-            'file',
-            'creator',
-            'created_at',
-            'updated_at',
-        )
-
-
 class UserSerializerWithToken(serializers.ModelSerializer):
 
     token = serializers.SerializerMethodField()
     password = serializers.CharField(write_only=True)
-    profile_image = ProfileImageSerializer()
 
     def get_token(self, obj):
 
@@ -106,7 +92,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
     """
     followers_count = serializers.ReadOnlyField()
     following_count = serializers.ReadOnlyField()
-    profile_image = ProfileImageSerializer()
 
     class Meta:
         model = User
@@ -117,14 +102,31 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'email',
             'followers_count',
             'following_count',
+            'is_private',
         )
+
+
+class ProfileImageSerializer(serializers.ModelSerializer):
+    """
+    Serializer for profile image.
+    """
+
+    def create_profile_image(self, instance, validated_data):
+        profile_image = ProfileImage.objects.create(creator=instance, file=validated_data.get('file'))
+        instance.profile_image = profile_image.file
+        instance.save()
+
+        return instance
+
+    class Meta:
+        model = ProfileImage
+        fields = '__all__'
 
 
 class UserChangeProfileSerializer(serializers.ModelSerializer):
     """
     Change user's profile.
     """
-    profile_image = ProfileImageSerializer(many=True)
 
     def update(self, instance, validated_data):
         if validated_data.get('email'):
@@ -139,6 +141,8 @@ class UserChangeProfileSerializer(serializers.ModelSerializer):
             instance.is_active = validated_data.get('is_active')
         if validated_data.get('is_deleted'):
             instance.is_deleted = validated_data.get('is_deleted')
+        if validated_data.get('is_private'):
+            instance.is_private = validated_data.get('is_private')
 
         try:
             instance.save()
@@ -150,13 +154,13 @@ class UserChangeProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = (
-            'profile_image',
             'user_id',
             'username',
             'email',
             'password',
             'is_active',
             'is_deleted',
+            'is_private',
         )
 
 
