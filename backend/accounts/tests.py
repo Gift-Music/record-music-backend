@@ -262,18 +262,6 @@ class ViewTest(APITestCase):
         token = default_token_generator.make_token(user)
         self.assertIsNotNone(token)
 
-    def test_should_decode_uidb64_and_find_user_pk(self):
-        encoded_user = User.objects.get(user_id='test')
-        uidb64 = urlsafe_base64_encode(force_bytes(encoded_user.user_pk))
-        token = default_token_generator.make_token(encoded_user)
-
-        uid = force_text(urlsafe_base64_decode(uidb64))
-        user = User.objects.get(user_pk=uid)
-        check_token = default_token_generator.check_token(user=user, token=token)
-
-        self.assertEqual(1, user.user_pk)
-        self.assertEqual(True, check_token)
-
     def test_check_current_domain(self):
         from django.test.client import RequestFactory
         rf = RequestFactory()
@@ -330,7 +318,7 @@ class ViewTest(APITestCase):
         self.assertEqual(False,
                          (default_token_generator._num_days(not_over_day) - ts) > settings.PASSWORD_RESET_TIMEOUT_DAYS)
 
-        y, m, d = 2021, 1, default_token_generator._today().day + 3
+        y, m, d = 2021, default_token_generator._today().month, default_token_generator._today().day + 3
         over_day = date(y, m, d)
 
         self.assertEqual(True,
