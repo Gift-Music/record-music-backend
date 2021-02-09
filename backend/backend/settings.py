@@ -32,7 +32,7 @@ DEBUG = True
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    '59.6.25.208'
+    'web'
     # '.ap-northeast-2.compute.amazonaws.com',
     # '.gift-music.com'
 ]
