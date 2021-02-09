@@ -18,7 +18,7 @@ services:
       - node.name=es1
       - cluster.initial_master_nodes=es1
       - bootstrap.memory_lock=true
-      - "ES_JAVA_OPS=-Xms512m -Xmx512m"
+      - "ES_JAVA_OPS=-Xms512m -Xmx2048m"
     ulimits:
       memlock:
         soft: -1
@@ -37,3 +37,9 @@ services:
   nginx:
     image: nginx:latest
     restart: always
+    ports:
+      - "80:80"
+    volumes:
+      ./config/nginx:/etc/nginx/conf.d
+    depends_on: 
+      - web
