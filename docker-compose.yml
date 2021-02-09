@@ -26,7 +26,7 @@ services:
     ports:
       - 9200:9200
   web:
-    build: .
+    build: ./backend
     command: gunicorn backend.wsgi:application --bind 0.0.0.0:8000
     volumes:
       - ./backend:/code
@@ -40,6 +40,6 @@ services:
     ports:
       - "80:80"
     volumes:
-      ./config/nginx:/etc/nginx/conf.d
+      - ./config/nginx:/etc/nginx/conf.d
     depends_on: 
       - web
