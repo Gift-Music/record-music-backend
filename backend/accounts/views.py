@@ -585,7 +585,7 @@ class UserActivate(View):
 
         user = User.objects.get(user_id=user_id)
         user_code = user.verify_code.split(',')[0]
-        send_time = user.verify_code.split(',')[0]
+        send_time = user.verify_code.split(',')[1]
 
         if user is not None and user_code is not None:
             if user_code == code:
