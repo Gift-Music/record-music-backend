@@ -12,16 +12,34 @@ services:
       - "5432:5432"
 
   es:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.2
+    image: elasticsearch:7.10.1
     restart: always
     environment:
       - node.name=es1
       - cluster.initial_master_nodes=es1
       - bootstrap.memory_lock=true
-      - "ES_JAVA_OPS=-Xms512m -Xmx512m"
+      - "ES_JAVA_OPS=-Xms512m -Xmx2048m"
     ulimits:
       memlock:
         soft: -1
         hard: -1
     ports:
       - 9200:9200
+  web:
+    build: ./backend
+    command: gunicorn backend.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - ./backend:/code
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+  nginx:
+    image: nginx:latest
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./config/nginx:/etc/nginx/conf.d
+    depends_on: 
+      - web

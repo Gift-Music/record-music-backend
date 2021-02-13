@@ -32,6 +32,7 @@ DEBUG = True
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
+    'web'
     # '.ap-northeast-2.compute.amazonaws.com',
     # '.gift-music.com'
 ]
@@ -101,7 +102,7 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 ELASTICSEARCH_DSL = {
     'default': {
-        'hosts': 'localhost:9200'
+        'hosts': '59.6.25.208:9200'
     },
 }
 
@@ -111,12 +112,12 @@ DATABASES = {
         'NAME': 'recordmusic',
         'USER': 'django',
         'PASSWORD': 'django',
-        'HOST': 'localhost',
+        'HOST': '59.6.25.208',
         'PORT': '5432',
     }
 }
 
-# Password validation
+# Password validation.
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
