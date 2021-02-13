@@ -37,6 +37,7 @@ urlpatterns = [
 
     path('accounts/', include('accounts.urls')),
     path('musicmaps/', include('musicmaps.urls')),
+    path('music/', include('music.urls')),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

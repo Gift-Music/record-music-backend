@@ -7,6 +7,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils.crypto import get_random_string
 from django.utils.http import base36_to_int
 from rest_framework.exceptions import ErrorDetail
+from rest_framework.settings import api_settings
 from rest_framework.test import APITestCase, APIClient
 
 from .authentication import *
@@ -65,7 +66,7 @@ class ModelTest(TestCase):
         self.assertEqual(None, user.is_deleted)
         self.assertEqual(None, user.verify_code)
 
-    def test_should_create_user_in_model(self):
+    def test_should_make_model(self):
         another_user = {
             'user_id': 'test3',
             'username': 'parktest',
@@ -661,6 +662,14 @@ class SubUserAccountViewTest(TestCase):
 
         self.assertEqual(code, user.verify_code.split(',')[0])
         self.assertEqual(str(today), user.verify_code.split(',')[1])
+
+        date = datetime(2021, 1, 1)
+        user.verify_code = f'{code},{date}'
+        user.save()
+
+        saved_date = user.verify_code.split(',')[1]
+        saved_date = datetime.strptime(saved_date, '%Y-%m-%d %H:%M:%S.%f')
+        print((datetime.now() - saved_date).day)
 
 
 class UserAccountFailTest(TestCase):
