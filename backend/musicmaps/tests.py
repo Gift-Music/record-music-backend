@@ -38,25 +38,40 @@ class PostDocumentsTest(TestCase):
         response = s.execute()
         self.assertEquals(response[0].coordinates, {"lat": 37.535397, "lon": 127.054437})
 
-    def test_add_comment(self):
+    def Test_add_comment(self):
         s = Post.search(index='musicmaps')
         response = s.execute()
         post_id = response[0].meta.id
         post = Post.get(id=post_id)
         post.add_comment(author_id=1, content="이것이 댓글")
         post.save()
+        time.sleep(2)
+        post = Post.get(id=post_id)
         self.assertEquals(post.comments[0].content, "이것이 댓글")
 
-    def test_update_comment(self):
+    def Test_update_comment(self):
         s = Post.search(index='musicmaps')
         response = s.execute()
         post_id = response[0].meta.id
         post = Post.get(id=post_id)
-        post.update_comment(author_id=1, content="이것이 댓글", index=1)
-        post.update()
-        self.assertEquals(post.comments[0].content, "이것이 댓글")
+        post.update_comment(author_id=1, content="댓글", index=0)
+        post.save()
+        time.sleep(2)
+        post = Post.get(id=post_id)
+        self.assertEquals(post.comments[0].content, "댓글")
 
-    def test_delete_post(self):
+    def Test_delete_comment(self):
+        s = Post.search(index="musicmaps")
+        response = s.execute()
+        post_id = response[0].meta.id
+        post = Post.get(id=post_id)
+        post.delete_comment(author_id=1, index=0)
+        post.save()
+        time.sleep(2)
+        post = Post.get(id=post_id)
+        self.assertEquals(post.comments, [])
+
+    def Test_delete_post(self):
         def delete(search):
             try:
                 return search.delete()
@@ -67,3 +82,8 @@ class PostDocumentsTest(TestCase):
         response = delete(s)
         self.assertGreater(response.deleted, 0)
 
+    def test_cud_comment_and_delete_post(self):
+        self.Test_add_comment()
+        self.Test_update_comment()
+        self.Test_delete_comment()
+        self.Test_delete_post()
