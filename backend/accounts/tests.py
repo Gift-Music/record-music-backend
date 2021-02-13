@@ -322,7 +322,6 @@ class BaseUserAccountViewTest(APITestCase):
         }
         response = client.post('/accounts/refresh/', data)
 
-<<<<<<< HEAD
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual('test', response.data.get('user').get('user_id'))
 
@@ -476,8 +475,6 @@ class SubUserAccountViewTest(TestCase):
         User.objects.create_user(user_id=cls.userdata.get('user_id'), username=cls.userdata.get('username'),
                                  email=cls.userdata.get('email'), password=cls.userdata.get('password'))
 
-=======
->>>>>>> a41a1ea4e1a1352aca5a70d8577ba8c2b2901b99
     def test_check_current_domain(self):
         from django.test.client import RequestFactory
         rf = RequestFactory()
@@ -543,12 +540,9 @@ class SubUserAccountViewTest(TestCase):
         self.assertEqual(False,
                          (default_token_generator._num_days(not_over_day) - ts) > settings.PASSWORD_RESET_TIMEOUT_DAYS)
 
-<<<<<<< HEAD
         y, m, d = default_token_generator._today().year, default_token_generator._today().month, \
                   default_token_generator._today().day + 3
-=======
-        y, m, d = 2021, default_token_generator._today().month, default_token_generator._today().day + 3
->>>>>>> a41a1ea4e1a1352aca5a70d8577ba8c2b2901b99
+
         over_day = date(y, m, d)
 
         self.assertEqual(True,
