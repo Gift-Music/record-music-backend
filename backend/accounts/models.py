@@ -168,6 +168,11 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         max_length=300,
         default=None,
     )
+    playlist = models.ManyToManyField(
+        'Playlist',
+        related_name='Music_Playlist',
+        blank=True
+    )
 
     objects = UserManager()
 
@@ -236,17 +241,16 @@ class ProfileImage(models.Model):
 
 
 class Playlist(models.Model):
-    playlist = models.ForeignKey(
+    user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        verbose_name='playlist_id',
+        related_name='playlist_owner',
     )
-    music = models.ManyToManyField(
+    playlist_name = models.CharField(
+        max_length=300,
+        default='Unnamed Playlist',
+    )
+    musics = models.ManyToManyField(
         music_model.Music,
-        blank=True,
-        related_name='music_id'
+        related_name='playlist_musics'
     )
-
-    class Meta:
-        db_table = 'playlist'
-        verbose_name = 'playlist'

@@ -202,6 +202,20 @@ class CustomRegisterSerializer(serializers.ModelSerializer):
         )
 
 
+class PlaylistSerializer(serializers.ModelSerializer):
+
+    def update(self, instance, validated_data):
+        if validated_data.get('playlist_name'):
+            instance.playlist_name = validated_data.get('playlist_name')
+        instance.save()
+
+        return instance
+
+    class Meta:
+        model = Playlist
+        fields = '__all__'
+
+
 class BaseVerifyUserSerializer(serializers.ModelSerializer):
     """
     serializer that determines the user's information and token values.

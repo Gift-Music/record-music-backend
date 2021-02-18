@@ -10,6 +10,7 @@ class MusicView(APIView):
     Basic Music CRUD methods
     """
     permission_classes = (permissions.AllowAny,)
+    serializer_class = MusicSerializer
 
     def get(self, request):
         try:
@@ -17,8 +18,7 @@ class MusicView(APIView):
         except Music.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        serializer = MusicSerializer(data=music)
-
+        serializer = MusicSerializer(music)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
@@ -36,7 +36,7 @@ class MusicView(APIView):
         except Music.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        serializer = MusicSerializer(data=request.data)
+        serializer = MusicSerializer(data=request.data, partial=True)
         if serializer.is_valid():
             music = serializer.update(instance=music, validated_data=serializer.validated_data)
 

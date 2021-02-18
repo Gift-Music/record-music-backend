@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
+from music.serializers import MusicSerializer
 from . import authentication
 from .serializers import *
 
@@ -611,3 +612,137 @@ class UserActivate(View):
         else:
             msg = "인증에 실패하였습니다."
             return HttpResponse(msg, status=status.HTTP_404_NOT_FOUND)
+
+
+class PlaylistView(APIView):
+    """
+    'playlist_num' is not a id of it (playlist_num != playlist_id).
+    It indicates which order the playlist is in. Starts with 0.
+
+    playlist_id = real id of playlist (autofield of model, saved in DB)
+    playlist_num = order of user's individual playlists.
+    """
+    authentication_classes = (authentication.CustomJWTAuthentication,)
+
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(user_id=user_id)
+
+            return Response(user.playlist.values(), status=status.HTTP_200_OK)
+
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    def post(self, request, user_id):
+        try:
+            user = User.objects.get(user_id=user_id)
+            playlist_name = request.data.get('playlist_name')
+            if playlist_name == '':
+                playlist_name = 'Unnamed Playlist'
+
+            playlist = Playlist.objects.create(user=user, playlist_name=playlist_name)
+            playlist.save()
+            user.playlist.add(playlist)
+            user.save()
+
+            serializer = PlaylistSerializer(playlist)
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request, user_id):
+        try:
+            user = User.objects.get(user_id=user_id)
+
+            playlist_name = request.data.get('playlist_name')
+            playlist_num = request.data.get('playlist_num')
+            try:
+                playlist = user.playlist.all()[int(playlist_num)]
+            except IndexError:
+                return Response(data='Index Error', status=status.HTTP_400_BAD_REQUEST)
+
+            playlist.playlist_name = playlist_name
+            playlist.save()
+
+            serializer = PlaylistSerializer(playlist)
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, user_id):
+        try:
+            user = User.objects.get(user_id=user_id)
+
+            playlist_num = request.data.get('playlist_num')
+            try:
+                playlist = user.playlist.all()[int(playlist_num)]
+            except IndexError:
+                return Response(data='Index Error', status=status.HTTP_400_BAD_REQUEST)
+            user.playlist.remove(playlist)
+            user.save()
+
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+
+class PlaylistDetailView(APIView):
+    """
+    'playlist_num' is not a id of it (playlist_num != playlist_id).
+    It indicates which order the playlist is in. Starts with 0.
+
+    playlist_id = real id of playlist (autofield of model, saved in DB).
+    playlist_num = order of user's individual playlists.
+    """
+    authentication_classes = (authentication.CustomJWTAuthentication,)
+
+    def get(self, request, user_id, playlist_num):
+        try:
+            user = User.objects.get(user_id=user_id)
+            try:
+                playlist = user.playlist.all()[int(playlist_num)]
+            except IndexError:
+                return Response(data='Index Error', status=status.HTTP_400_BAD_REQUEST)
+            serializer = MusicSerializer(playlist.musics, many=True)
+
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    def post(self, request, user_id, playlist_num):
+        try:
+            user = User.objects.get(user_id=user_id)
+            try:
+                playlist = user.playlist.all()[int(playlist_num)]
+            except IndexError:
+                return Response(data='Index Error', status=status.HTTP_400_BAD_REQUEST)
+            music = request.data.get('music_id')
+            playlist.musics.add(music)
+            user.save()
+
+            serializer = MusicSerializer(playlist.musics, many=True)
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, user_id, playlist_num):
+        try:
+            user = User.objects.get(user_id=user_id)
+            try:
+                playlist = user.playlist.all()[int(playlist_num)]
+            except IndexError:
+                return Response(data='Index Error', status=status.HTTP_400_BAD_REQUEST)
+            music = request.data.get('music_id')
+            playlist.musics.remove(music)
+            user.save()
+
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)

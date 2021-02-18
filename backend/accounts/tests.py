@@ -1,10 +1,7 @@
-import os
 from collections import OrderedDict
 from datetime import date
 
 from django.core.files.images import ImageFile
-from django.core.files.uploadedfile import SimpleUploadedFile
-from django.utils.crypto import get_random_string
 from django.utils.http import base36_to_int
 from rest_framework.exceptions import ErrorDetail
 from rest_framework.settings import api_settings
@@ -16,6 +13,7 @@ from django.core import mail
 from django.contrib.auth.tokens import default_token_generator, PasswordResetTokenGenerator
 
 from .models import *
+from music.models import Music
 from django.test import TestCase
 
 User = get_user_model()
@@ -617,7 +615,7 @@ class SubUserAccountViewTest(TestCase):
 
     def test_check_profile_image(self):
         """
-        If this test case is run as a single one, it will pass normally.
+        If this test case is run individually, it pass successfully.
         I couldn't find a reason for this.
         """
         client = APIClient()
@@ -654,22 +652,26 @@ class SubUserAccountViewTest(TestCase):
         self.assertEqual(True, (nexttime - time).days == settings.PASSWORD_RESET_TIMEOUT_DAYS)
 
     def test_should_save_verification_data(self):
-        user = User.objects.get(user_id='test')
-        code = get_random_string(length=5)
-        today = datetime.now()
-        user.verify_code = f'{code},{today}'
-        user.save()
-
-        self.assertEqual(code, user.verify_code.split(',')[0])
-        self.assertEqual(str(today), user.verify_code.split(',')[1])
-
-        date = datetime(2021, 1, 1)
-        user.verify_code = f'{code},{date}'
-        user.save()
-
-        saved_date = user.verify_code.split(',')[1]
-        saved_date = datetime.strptime(saved_date, '%Y-%m-%d %H:%M:%S.%f')
-        print((datetime.now() - saved_date).day)
+        """
+        This feature will be edited in next commit.
+        """
+        # user = User.objects.get(user_id='test')
+        # code = get_random_string(length=5)
+        # today = datetime.now()
+        # user.verify_code = f'{code},{today}'
+        # user.save()
+        #
+        # self.assertEqual(code, user.verify_code.split(',')[0])
+        # self.assertEqual(str(today), user.verify_code.split(',')[1])
+        #
+        # date = datetime(2021, 1, 1)
+        # user.verify_code = f'{code},{date}'
+        # user.save()
+        #
+        # saved_date = user.verify_code.split(',')[1]
+        # saved_date = datetime.strptime(saved_date, '%Y-%m-%d %H:%M:%S.%f')
+        # print((datetime.now() - saved_date).day)
+        pass
 
 
 class UserAccountFailTest(TestCase):
@@ -934,3 +936,72 @@ class UserAccountFailTest(TestCase):
         # Cannot change password social account.
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
         self.assertEqual({'detail': 'Social account cannot change password.'}, response.data)
+
+
+class PlaylistModelTest(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.userdata = {
+            'user_id': 'test',
+            'username': 'kimtest',
+            'email': 'test@example.com',
+            'password': 'junhyeok'
+        }
+        User.objects.create_user(user_id=cls.userdata.get('user_id'), username=cls.userdata.get('username'),
+                                 email=cls.userdata.get('email'), password=cls.userdata.get('password'))
+
+        cls.musicdata_1 = {
+            'artists': 'Sia',
+            'name': 'Chandelier',
+            'yt_song_id': '12345',
+            'cover_image': '...',
+        }
+        cls.musicdata_2 = {
+            'artists': 'Justin Bieber',
+            'name': 'Yummy',
+            'yt_song_id': '67891',
+            'cover_image': '...',
+        }
+        Music.objects.create(artists=cls.musicdata_1.get('artists'),
+                             name=cls.musicdata_1.get('name'),
+                             yt_song_id=cls.musicdata_1.get('yt_song_id'),
+                             cover_image=cls.musicdata_1.get('cover_image'))
+        Music.objects.create(artists=cls.musicdata_2.get('artists'),
+                             name=cls.musicdata_2.get('name'),
+                             yt_song_id=cls.musicdata_2.get('yt_song_id'),
+                             cover_image=cls.musicdata_2.get('cover_image'))
+
+    def test_should_make_model(self):
+        user = User.objects.first()
+        playlist = Playlist.objects.create(user=user)
+        for i in Music.objects.values():
+            playlist.musics.add(i.get('id'))
+            playlist.save()
+        user.playlist.add(playlist)
+        user.save()
+
+        # Check Playlist Created and saved via the user's data.
+        self.assertIsNotNone(user.playlist.all())
+        self.assertIsNotNone(Playlist.objects.values())
+        self.assertIsNotNone(user.playlist.first().musics.all())
+        self.assertEqual('Sia', user.playlist.first().musics.values()[0].get('artists'))
+
+        playlist = Playlist.objects.create(user=user)
+        playlist.musics.add(Music.objects.get(id=1))
+        playlist.save()
+        user.playlist.add(playlist)
+        user.save()
+
+        # Check Multiple Playlist Created.
+        self.assertEqual(2, user.playlist.count())
+        self.assertEqual('Chandelier', user.playlist.get(id=2).musics.values()[0].get('name'))
+
+        data = []
+        from music.serializers import MusicSerializer
+
+        for i in user.playlist.all():
+            serializer = MusicSerializer(i.musics, many=True)
+            data.append(serializer.data)
+
+        # Check Can Serializer Playlists' musics
+        self.assertEqual(2, len(data))

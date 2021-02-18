@@ -23,6 +23,8 @@ urlpatterns = [
     path('<user_id>/unfollow/', views.UnFollowUser.as_view(), name='unfollow_user'),
     path('<user_id>/followers/', views.UserFollowers.as_view(), name='user_followers'),
     path('<user_id>/following/', views.UserFollowing.as_view(), name='user_following'),
+    path('<user_id>/playlists/', views.PlaylistView.as_view(), name='user_playlists'),
+    path('<user_id>/playlists/<playlist_num>/', views.PlaylistDetailView.as_view(), name='user_playlist_detail'),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
