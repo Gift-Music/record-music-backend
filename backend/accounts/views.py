@@ -60,8 +60,6 @@ def send_verification_email(request, email):
 class UserProfile(APIView):
     """
     Check Current UserProfile
-
-    todo : changing profile image
     """
     authentication_classes = (authentication.CustomJWTAuthentication,)
 
@@ -571,11 +569,12 @@ class UserRegister(APIView):
         return user
 
 
-class UserActivate(View):
+class UserActivate(APIView):
     """
     response:
         msg (string)
     """
+    permission_classes = (permissions.AllowAny,)
 
     def get(self, *args, **kwargs):
         return self.post(*args, **kwargs)
@@ -587,9 +586,10 @@ class UserActivate(View):
         user = User.objects.get(user_id=user_id)
         user_code = user.verify_code.split(',')[0]
         send_time = user.verify_code.split(',')[1]
+        send_time = datetime.strptime(send_time, "%Y-%m-%d %H:%M:%S.%f")
 
         if user is not None and user_code is not None:
-            if user_code == code:
+            if user_code == code and (datetime.now() - send_time).days < 1:
                 user.is_active = True
                 user.save()
 

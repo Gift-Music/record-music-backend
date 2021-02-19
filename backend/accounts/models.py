@@ -2,6 +2,7 @@ from django.contrib.auth.models import (
     BaseUserManager, AbstractBaseUser, PermissionsMixin, Permission, _user_get_permissions, _user_has_perm,
     _user_has_module_perms
 )
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
@@ -145,9 +146,19 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         verbose_name=_('Is social account'),
         default=False
     )
-    is_private = models.BooleanField(
-        verbose_name=_('Is private account'),
-        default=False
+    """
+    Possible Values of 'is_private'
+     - 0 : 전체 공개 (Public)
+     - 1 : 맞팔로워 공개 (Cross-follower public)
+     - 2 : 비공개 (Private)
+    """
+    is_private = models.IntegerField(
+        verbose_name=_('Account Privacy'),
+        default=0,
+        validators=[
+            MaxValueValidator(2),
+            MinValueValidator(0)
+        ]
     )
     date_joined = models.DateTimeField(
         verbose_name=_('Date joined'),
@@ -171,7 +182,13 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
     playlist = models.ManyToManyField(
         'Playlist',
         related_name='Music_Playlist',
-        blank=True
+        blank=True,
+    )
+    status_message = models.CharField(
+        verbose_name=_('Status Message'),
+        max_length=800,
+        blank=True,
+        null=True,
     )
 
     objects = UserManager()

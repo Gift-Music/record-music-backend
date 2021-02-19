@@ -103,6 +103,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'followers_count',
             'following_count',
             'is_private',
+            'status_message',
         )
 
 
@@ -143,6 +144,8 @@ class UserChangeProfileSerializer(serializers.ModelSerializer):
             instance.is_deleted = validated_data.get('is_deleted')
         if validated_data.get('is_private'):
             instance.is_private = validated_data.get('is_private')
+        if validated_data.get('status_message'):
+            instance.status_message = validated_data.get('status_message')
 
         try:
             instance.save()
@@ -161,6 +164,7 @@ class UserChangeProfileSerializer(serializers.ModelSerializer):
             'is_active',
             'is_deleted',
             'is_private',
+            'status_message',
         )
 
 

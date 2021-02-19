@@ -10,7 +10,7 @@ from rest_framework.test import APITestCase, APIClient
 from .authentication import *
 from .views import *
 from django.core import mail
-from django.contrib.auth.tokens import default_token_generator, PasswordResetTokenGenerator
+from django.contrib.auth.tokens import default_token_generator
 
 from .models import *
 from music.models import Music
@@ -652,26 +652,25 @@ class SubUserAccountViewTest(TestCase):
         self.assertEqual(True, (nexttime - time).days == settings.PASSWORD_RESET_TIMEOUT_DAYS)
 
     def test_should_save_verification_data(self):
-        """
-        This feature will be edited in next commit.
-        """
-        # user = User.objects.get(user_id='test')
-        # code = get_random_string(length=5)
-        # today = datetime.now()
-        # user.verify_code = f'{code},{today}'
-        # user.save()
-        #
-        # self.assertEqual(code, user.verify_code.split(',')[0])
-        # self.assertEqual(str(today), user.verify_code.split(',')[1])
-        #
-        # date = datetime(2021, 1, 1)
-        # user.verify_code = f'{code},{date}'
-        # user.save()
-        #
-        # saved_date = user.verify_code.split(',')[1]
-        # saved_date = datetime.strptime(saved_date, '%Y-%m-%d %H:%M:%S.%f')
-        # print((datetime.now() - saved_date).day)
-        pass
+        user = User.objects.get(user_id='test')
+        code = get_random_string(length=5)
+        today = datetime.now()
+        user.verify_code = f'{code},{today}'
+        user.save()
+
+        self.assertEqual(code, user.verify_code.split(',')[0])
+        self.assertEqual(str(today), user.verify_code.split(',')[1])
+
+        date = datetime(2021, 1, 1)
+        user.verify_code = f'{code},{date}'
+        user.save()
+
+        saved_date = user.verify_code.split(',')[1]
+        saved_date = datetime.strptime(saved_date, "%Y-%m-%d %H:%M:%S")
+        passed_time = (datetime.now() - saved_date).days
+
+        self.assertEqual(True, passed_time >= 1)
+        self.assertEqual(int, type(passed_time))
 
 
 class UserAccountFailTest(TestCase):
