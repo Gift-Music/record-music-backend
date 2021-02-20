@@ -1,16 +1,17 @@
 from django.contrib.auth import get_user_model
-from django.contrib.auth.tokens import default_token_generator
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.mail import EmailMessage
-from django.utils.encoding import force_text, force_bytes
-from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.http import HttpResponse
+from django.utils.crypto import get_random_string
 from django.utils.translation import ugettext_lazy as _
+from django.views import View
 
 from rest_framework import permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
+from music.serializers import MusicSerializer
 from . import authentication
 from .serializers import *
 
@@ -33,32 +34,32 @@ def user_jwt_encode(user):
     return jwt_encode_handler(payload)
 
 
-def send_verification_email(request, user, email, link):
+def send_verification_email(request, email):
     """
     Send verification email to user.
 
     Usage : Register new account, Checking Author of the logged account is owner.
     """
-    def message(domain, uidb64, token):
-        activation_link = f"{link}/{uidb64}/{token}"
-        return f"아래 링크를 클릭하면 회원 인증이 완료됩니다.\n\n" \
-               f"회원 인증 완료 링크 : {activation_link}\n\n감사합니다."
+
+    def message(domain, code):
+        return f"아래 계정 확인 코드를 입력하면 회원 인증이 완료됩니다.\n\n" \
+               f"계정 확인 코드 : {code}\n\n감사합니다."
 
     subject = '[RecordMusic] 계정 인증'
     current_site = get_current_site(request)
+    current_time = datetime.now()
     domain = current_site.domain
-    uidb64 = urlsafe_base64_encode(force_bytes(user.user_pk))
-    token = default_token_generator.make_token(user=user)  # One-time token for account authentication
-    message = message(domain, uidb64, token)
+    code = get_random_string(length=5)
+    message = message(domain, code)
     mail = EmailMessage(subject, message, to=[email])
     mail.send()
+
+    return code, current_time
 
 
 class UserProfile(APIView):
     """
     Check Current UserProfile
-
-    todo : changing profile image
     """
     authentication_classes = (authentication.CustomJWTAuthentication,)
 
@@ -74,7 +75,10 @@ class UserProfile(APIView):
         user = self.get_user(user_id)
 
         if user is None:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.is_active is False:
+            return Response({"detail": _("Cannot get disabled account.")}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = UserProfileSerializer(user)
 
@@ -88,19 +92,24 @@ class UserProfile(APIView):
 
         if user is None:
 
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         elif user.user_id != req_user.user_id:
 
-            return Response(status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        elif user.is_active is False and user.is_deleted is not None:
+            return Response({"detail": _("Cannot modify disabled account.")}, status=status.HTTP_403_FORBIDDEN)
 
         else:
 
             cpserializer = UserChangeProfileSerializer(user, data=request.data, partial=True)
 
             if cpserializer.is_valid():
-                cpserializer.update(validated_data=cpserializer.validated_data, instance=user)
-                user = cpserializer.save()
+                if cpserializer.validated_data.get('password') and user.is_social is True:
+                    return Response({"detail": _("Social account cannot change password.")},
+                                    status=status.HTTP_403_FORBIDDEN)
+                user = cpserializer.update(validated_data=cpserializer.validated_data, instance=user)
 
                 serializer = UserSerializerWithToken(user)
                 user_token = serializer.data.get('token')
@@ -117,6 +126,138 @@ class UserProfile(APIView):
             else:
 
                 return Response(data=cpserializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, user_id, format=None):
+        req_user = request.user
+
+        user = self.get_user(user_id)
+
+        if user is None:
+
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.user_id != req_user.user_id:
+
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        else:
+            user = User.objects.get(user_id=user_id)
+            user.is_active = False
+            user.is_deleted = timezone.now()
+            user.save()
+
+            return Response({"detail": _("User decativated.")}, status=status.HTTP_200_OK)
+
+
+class UserProfileImage(APIView):
+    """
+    View for uploaded profile images.
+    """
+    authentication_classes = (authentication.CustomJWTAuthentication,)
+    serializer_class = ProfileImageSerializer
+
+    def get_user(self, user_id):
+        try:
+            user = User.objects.get(user_id=user_id)
+            return user
+        except User.DoesNotExist:
+            return None
+
+    def get(self, request, user_id):
+        req_user = request.user
+
+        user = self.get_user(user_id)
+
+        if user is None:
+
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.user_id != req_user.user_id:
+
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        profile_images = user.profileimage_set.all()
+        serializer = ProfileImageSerializer(profile_images, many=True)
+
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, user_id):
+        req_user = request.user
+
+        user = self.get_user(user_id)
+
+        if user is None:
+
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.user_id != req_user.user_id:
+
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user = User.objects.get(user_id=user_id)
+        serializer = ProfileImageSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.create_profile_image(user, serializer.validated_data)
+
+            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
+
+        else:
+            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request, user_id):
+        """
+        request:
+            pk of the ProfileImage.
+        """
+        req_user = request.user
+
+        user = self.get_user(user_id)
+
+        if user is None:
+
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.user_id != req_user.user_id:
+
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if request.data.get('id'):
+            user.profile_image = ProfileImage.objects.get(id=request.data.get('id')).file
+            user.save()
+
+            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
+
+        else:
+            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, user_id):
+        """
+        request:
+            pk of the ProfileImage.
+        """
+        req_user = request.user
+
+        user = self.get_user(user_id)
+
+        if user is None:
+
+            return Response({"detail": _("User not found.")}, status=status.HTTP_404_NOT_FOUND)
+
+        elif user.user_id != req_user.user_id:
+
+            return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if request.data.get('id'):
+            instance = ProfileImage.objects.get(id=request.data.get('id'))
+            if instance.file == user.profile_image:
+                user.profile_image = None
+                user.save()
+            ProfileImage.delete(instance)
+
+            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
+
+        else:
+            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ExploreUsers(APIView):
@@ -144,8 +285,15 @@ class FollowUser(APIView):
 
         try:
             user_to_follow = User.objects.get(user_id=user_id)
-            # cannot unfollow myself.
-            if user == user_to_follow: return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+            # cannot follow myself.
+            if user == user_to_follow:
+                return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+            # cannot follow withdrawn user or deactivated user.
+            if user_to_follow.is_deleted or user_to_follow.is_active is False:
+                return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
         except User.DoesNotExist:
             return Response({"isSuccess": False}, status=status.HTTP_404_NOT_FOUND)
 
@@ -166,8 +314,15 @@ class UnFollowUser(APIView):
 
         try:
             user_to_follow = User.objects.get(user_id=user_id)
+
             # cannot unfollow myself.
-            if user == user_to_follow: return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+            if user == user_to_follow:
+                return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
+            # cannot unfollow withdrawn user or deactivated user.
+            if user_to_follow.is_deleted or user_to_follow.is_active is False:
+                return Response({"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+
         except User.DoesNotExist:
             return Response({"isSuccess": False}, status=status.HTTP_404_NOT_FOUND)
 
@@ -251,13 +406,17 @@ class UserTokenVerify(APIView):
     request:
         "token" : string
     """
-    permission_classes = (permissions.AllowAny,)
+    authentication_classes = (authentication.CustomJWTAuthentication,)
 
     def post(self, request):
 
         try:
+            logged_user = request.user
             serializer_class = CustomVerifyJSONWebTokenSerializer
             token, user = serializer_class.validate(serializer_class, request.data)
+
+            if user != logged_user:
+                return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
 
             serializer = UserProfileSerializer(user)
             data = {'token': token,
@@ -279,23 +438,30 @@ class UserTokenRefresh(APIView):
     request:
         "token" : string
     """
-    permission_classes = (permissions.AllowAny,)
+    authentication_classes = (authentication.CustomJWTAuthentication,)
 
     def post(self, request):
-        serialzier_class = CustomRefreshJSONWebTokenSerializer
-        token, user = serialzier_class.validate(serialzier_class, request.data)
+        try:
+            logged_user = request.user
+            serialzier_class = CustomRefreshJSONWebTokenSerializer
+            token, user = serialzier_class.validate(serialzier_class, request.data)
 
-        serializer = UserSerializerWithToken(user)
-        user_token = serializer.data.get('token')
-        data = {'token': user_token,
-                'user': {
-                    "profile_image": serializer.data.get('profile_image'),
-                    "user_id": serializer.data.get('user_id'),
-                    "email": serializer.data.get('email')
+            if user != logged_user:
+                return Response({"detail": _("User mismatch.")}, status=status.HTTP_401_UNAUTHORIZED)
+
+            serializer = UserSerializerWithToken(user)
+            user_token = serializer.data.get('token')
+            data = {'token': user_token,
+                    'user': {
+                        "profile_image": serializer.data.get('profile_image'),
+                        "user_id": serializer.data.get('user_id'),
+                        "email": serializer.data.get('email')
+                        }
                     }
-                }
 
-        return Response(data=data, status=status.HTTP_200_OK)
+            return Response(data=data, status=status.HTTP_200_OK)
+        except (AssertionError, TypeError):
+            return Response({"detail": _("No user found, cannot refresh token.")}, status=status.HTTP_404_NOT_FOUND)
 
 
 class UserLogin(APIView):
@@ -318,11 +484,16 @@ class UserLogin(APIView):
                                                   "Please proceed login with 'Continue with Social Account'")}
                                 , status=status.HTTP_403_FORBIDDEN)
             if not user.check_password(password):
-                return Response(status=status.HTTP_401_UNAUTHORIZED)
+                return Response(data={"detail": _("Wrong user id or password.")}
+                                , status=status.HTTP_401_UNAUTHORIZED)
+            if user.is_deleted:
+                return Response(data={"detail": _("This account is a withdrawn account.")}
+                                , status=status.HTTP_401_UNAUTHORIZED)
             if user and user.is_active is False:
                 if email is not None:
-                    send_verification_email(request, user, email,
-                                            link='http://127.0.0.1:9080/accounts/activate')
+                    code, send_time = send_verification_email(request, email)
+                    user.verify_code = f'{code},{send_time}'
+                    user.save()
 
                     return Response(data={"detail": _("Please verify this account. Verification Email Sent.")}
                                     , status=status.HTTP_403_FORBIDDEN)
@@ -368,10 +539,11 @@ class UserRegister(APIView):
             email = user.get_user_email()
 
             if user.is_active is False and email is not None:
-                send_verification_email(request, user, email,
-                                        link='http://127.0.0.1:9080/accounts/activate')
+                code, send_time = send_verification_email(request, email)
+                user.verify_code = f'{code},{send_time}'
+                user.save()
 
-                return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_201_CREATED)
+                return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_200_OK)
 
             else:
                 return Response(data={"detail": _("Email is not found.")}, status=status.HTTP_404_NOT_FOUND)
@@ -379,8 +551,9 @@ class UserRegister(APIView):
             user = User.objects.get(user_id=request.data.get('user_id'))
             if user and user.is_active is False:
                 if user.email is not None:
-                    send_verification_email(request, user, user.email,
-                                            link='http://127.0.0.1:9080/accounts/activate')
+                    code, send_time = send_verification_email(request, user.email)
+                    user.verify_code = f'{code},{send_time}'
+                    user.save()
 
                     return Response(data={"detail": _("You have not verify this account. Verification Email Sent.")}
                                     , status=status.HTTP_403_FORBIDDEN)
@@ -399,79 +572,177 @@ class UserRegister(APIView):
 class UserActivate(APIView):
     """
     response:
-        {"isSuccess": Boolean}
+        msg (string)
     """
     permission_classes = (permissions.AllowAny,)
 
     def get(self, *args, **kwargs):
         return self.post(*args, **kwargs)
 
-    def post(self, request, uidb64, token):
-        uid = force_text(urlsafe_base64_decode(uidb64))
-        user = User.objects.get(user_pk=uid)
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        code = request.data.get('code')
 
-        if user is not None and default_token_generator.check_token(user=user, token=token):
-            user.is_active = True
+        user = User.objects.get(user_id=user_id)
+        user_code = user.verify_code.split(',')[0]
+        send_time = user.verify_code.split(',')[1]
+        send_time = datetime.strptime(send_time, "%Y-%m-%d %H:%M:%S.%f")
+
+        if user is not None and user_code is not None:
+            if user_code == code and (datetime.now() - send_time).days < 1:
+                user.is_active = True
+                user.save()
+
+                msg = "인증 되었습니다."
+                return HttpResponse(msg, status=status.HTTP_200_OK)
+
+            else:
+                msg = "코드 번호가 다릅니다."
+                return HttpResponse(msg, status=status.HTTP_400_BAD_REQUEST)
+
+        elif (datetime.now() - send_time).days >= 1:
+            email = user.get_user_email()
+            code, send_time = send_verification_email(request, email)
+            user.verify_code = f'{code},{send_time}'
             user.save()
 
-            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
-
-        elif default_token_generator.check_token(user=user, token=token) is False:
-            send_verification_email(request, user=user, email=user.email,
-                                    link='http://127.0.0.1:9080/accounts/activate')
-
-            return Response(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
-                            status=status.HTTP_403_FORBIDDEN)
+            msg = "인증 메일이 만료되었습니다. 새로운 인증 메일을 확인해 주세요."
+            return HttpResponse(msg, status=status.HTTP_403_FORBIDDEN)
 
         else:
-            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+            msg = "인증에 실패하였습니다."
+            return HttpResponse(msg, status=status.HTTP_404_NOT_FOUND)
 
 
-class CheckUser(APIView):
+class PlaylistView(APIView):
     """
-    Confirming that the user is himself by sending confirmation email.
-    Can use it when user authorization is needed before change password.
+    'playlist_num' is not a id of it (playlist_num != playlist_id).
+    It indicates which order the playlist is in. Starts with 0.
 
-    PW change suggestion : The process of changing password is recommended to be implemented
-    as a process of identifying user themselves via email and initializing password into new password
-    rather than the process of writing old password and writing new password.
-
-    This is because accounts created with social accounts have random passwords,
-    and even the owner of social accounts does not know the password of accounts stored in the DB.
+    playlist_id = real id of playlist (autofield of model, saved in DB)
+    playlist_num = order of user's individual playlists.
     """
     authentication_classes = (authentication.CustomJWTAuthentication,)
 
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(user_id=user_id)
+
+            return Response(user.playlist.values(), status=status.HTTP_200_OK)
+
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
     def post(self, request, user_id):
-        user = User.objects.get(user_id=user_id)
-        email = user.get_user_email()
+        try:
+            user = User.objects.get(user_id=user_id)
+            playlist_name = request.data.get('playlist_name')
+            if playlist_name == '':
+                playlist_name = 'Unnamed Playlist'
 
-        send_verification_email(request, user=user, email=email,
-                                link='http://127.0.0.1:9080/accounts/checkuser/redirect')
+            playlist = Playlist.objects.create(user=user, playlist_name=playlist_name)
+            playlist.save()
+            user.playlist.add(playlist)
+            user.save()
 
-        return Response(data={"detail": _("Verification Email Sent.")}, status=status.HTTP_200_OK)
+            serializer = PlaylistSerializer(playlist)
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request, user_id):
+        try:
+            user = User.objects.get(user_id=user_id)
+
+            playlist_name = request.data.get('playlist_name')
+            playlist_num = request.data.get('playlist_num')
+            try:
+                playlist = user.playlist.all()[int(playlist_num)]
+            except IndexError:
+                return Response(data='Index Error', status=status.HTTP_400_BAD_REQUEST)
+
+            playlist.playlist_name = playlist_name
+            playlist.save()
+
+            serializer = PlaylistSerializer(playlist)
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, user_id):
+        try:
+            user = User.objects.get(user_id=user_id)
+
+            playlist_num = request.data.get('playlist_num')
+            try:
+                playlist = user.playlist.all()[int(playlist_num)]
+            except IndexError:
+                return Response(data='Index Error', status=status.HTTP_400_BAD_REQUEST)
+            user.playlist.remove(playlist)
+            user.save()
+
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
-class VerifyUser(APIView):
+class PlaylistDetailView(APIView):
     """
-    response:
-        {"isSuccess": Boolean}
+    'playlist_num' is not a id of it (playlist_num != playlist_id).
+    It indicates which order the playlist is in. Starts with 0.
+
+    playlist_id = real id of playlist (autofield of model, saved in DB).
+    playlist_num = order of user's individual playlists.
     """
-    permission_classes = (permissions.AllowAny,)
+    authentication_classes = (authentication.CustomJWTAuthentication,)
 
-    def get(self, request, uidb64, token):
-        uid = force_text(urlsafe_base64_decode(uidb64))
-        user = User.objects.get(user_pk=uid)
-        request.user = user
-        if user is not None and default_token_generator.check_token(user=user, token=token):
+    def get(self, request, user_id, playlist_num):
+        try:
+            user = User.objects.get(user_id=user_id)
+            try:
+                playlist = user.playlist.all()[int(playlist_num)]
+            except IndexError:
+                return Response(data='Index Error', status=status.HTTP_400_BAD_REQUEST)
+            serializer = MusicSerializer(playlist.musics, many=True)
 
-            return Response(data={"isSuccess": True}, status=status.HTTP_200_OK)
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
 
-        elif default_token_generator.check_token(user=user, token=token) is False:
-            send_verification_email(request, user=user, email=user.email,
-                                    link='http://127.0.0.1:9080/accounts/checkuser/redirect')
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
 
-            return Response(data={"detail": _("Account authentication has expired. New Verification Email Sent.")},
-                            status=status.HTTP_403_FORBIDDEN)
+    def post(self, request, user_id, playlist_num):
+        try:
+            user = User.objects.get(user_id=user_id)
+            try:
+                playlist = user.playlist.all()[int(playlist_num)]
+            except IndexError:
+                return Response(data='Index Error', status=status.HTTP_400_BAD_REQUEST)
+            music = request.data.get('music_id')
+            playlist.musics.add(music)
+            user.save()
 
-        else:
-            return Response(data={"isSuccess": False}, status=status.HTTP_400_BAD_REQUEST)
+            serializer = MusicSerializer(playlist.musics, many=True)
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, user_id, playlist_num):
+        try:
+            user = User.objects.get(user_id=user_id)
+            try:
+                playlist = user.playlist.all()[int(playlist_num)]
+            except IndexError:
+                return Response(data='Index Error', status=status.HTTP_400_BAD_REQUEST)
+            music = request.data.get('music_id')
+            playlist.musics.remove(music)
+            user.save()
+
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
