@@ -1,5 +1,6 @@
 from django.test import TestCase
-from .documents import Post
+from .documents import Post, Music
+from .controller import *
 
 import time
 from elasticsearch.exceptions import ConflictError
@@ -8,6 +9,9 @@ from elasticsearch.exceptions import ConflictError
 class PostDocumentsTest(TestCase):
     @classmethod
     def setUpTestData(cls):
+        Post.init()
+        music1 = Music(artists="김태우", name="사랑비", yt_song_id="xYcT6QDQVLE")
+        music2 = Music(artists="악동뮤지션", name="오랜 날 오랜 밤", yt_song_id="wEQpfil0IYA")
         post = Post(
             open_range=1,
             author_id=1,
@@ -15,7 +19,11 @@ class PostDocumentsTest(TestCase):
             content="아 코딩하기 시러어어ㅓㅓㅇ",
             coordinates={"lat": 37.535397, "lon": 127.054437},
             street_address="서울특별시 성동구 둘레15길",
-            building_number=7
+            building_number=7,
+            playlist=[
+                music1,
+                music2
+            ]
         )
         post.save()
         time.sleep(1)
@@ -37,6 +45,33 @@ class PostDocumentsTest(TestCase):
         })
         response = s.execute()
         self.assertEquals(response[0].coordinates, {"lat": 37.535397, "lon": 127.054437})
+
+    def test_location_query(self):
+        s = Post.search(index='musicmaps').query('match', street_address__nori="성동")
+        response = s.execute()
+        self.assertTrue(response[0])
+
+    def test_music_query(self):
+        q = Q(
+            {"nested": {
+                "path": "playlist",
+                "query": {
+                    "match": {
+                        "playlist.name.nori": "사랑"
+                    }
+                }
+            }
+            })
+        s = Post.search(index='musicmaps').query(q)
+        response = s.execute()
+
+        self.assertTrue(response[0])
+
+    def test_total_search(self):
+        data = {"query": "사랑"}
+        response = total_search(data)
+
+        self.assertTrue(response[0])
 
     def Test_add_comment(self):
         s = Post.search(index='musicmaps')
@@ -78,6 +113,7 @@ class PostDocumentsTest(TestCase):
             except ConflictError:
                 time.sleep(1)
                 return delete(search)
+
         s = Post.search(index='musicmaps').query('match', author_id=1)
         response = delete(s)
         self.assertGreater(response.deleted, 0)
