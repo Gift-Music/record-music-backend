@@ -11,7 +11,7 @@ from rest_framework_jwt.settings import api_settings
 from django.utils.translation import ugettext as _
 from django.db import IntegrityError
 
-from .models import User
+from .models import *
 
 jwt_encode_handler = api_settings.JWT_ENCODE_HANDLER
 
@@ -102,7 +102,26 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'email',
             'followers_count',
             'following_count',
+            'is_private',
+            'status_message',
         )
+
+
+class ProfileImageSerializer(serializers.ModelSerializer):
+    """
+    Serializer for profile image.
+    """
+
+    def create_profile_image(self, instance, validated_data):
+        profile_image = ProfileImage.objects.create(creator=instance, file=validated_data.get('file'))
+        instance.profile_image = profile_image.file
+        instance.save()
+
+        return instance
+
+    class Meta:
+        model = ProfileImage
+        fields = '__all__'
 
 
 class UserChangeProfileSerializer(serializers.ModelSerializer):
@@ -119,6 +138,14 @@ class UserChangeProfileSerializer(serializers.ModelSerializer):
             instance.user_id = validated_data.get('user_id')
         if validated_data.get('password'):
             instance.set_password(validated_data.get('password'))
+        if validated_data.get('is_active'):
+            instance.is_active = validated_data.get('is_active')
+        if validated_data.get('is_deleted'):
+            instance.is_deleted = validated_data.get('is_deleted')
+        if validated_data.get('is_private'):
+            instance.is_private = validated_data.get('is_private')
+        if validated_data.get('status_message'):
+            instance.status_message = validated_data.get('status_message')
 
         try:
             instance.save()
@@ -130,11 +157,14 @@ class UserChangeProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = (
-            'profile_image',
             'user_id',
             'username',
             'email',
             'password',
+            'is_active',
+            'is_deleted',
+            'is_private',
+            'status_message',
         )
 
 
@@ -174,6 +204,20 @@ class CustomRegisterSerializer(serializers.ModelSerializer):
             'password',
             'is_active'
         )
+
+
+class PlaylistSerializer(serializers.ModelSerializer):
+
+    def update(self, instance, validated_data):
+        if validated_data.get('playlist_name'):
+            instance.playlist_name = validated_data.get('playlist_name')
+        instance.save()
+
+        return instance
+
+    class Meta:
+        model = Playlist
+        fields = '__all__'
 
 
 class BaseVerifyUserSerializer(serializers.ModelSerializer):

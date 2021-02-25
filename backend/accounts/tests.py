@@ -1,28 +1,35 @@
 from collections import OrderedDict
 from datetime import date
 
+from django.core.files.images import ImageFile
 from django.utils.http import base36_to_int
+from rest_framework.exceptions import ErrorDetail
+from rest_framework.settings import api_settings
 from rest_framework.test import APITestCase, APIClient
 
 from .authentication import *
 from .views import *
 from django.core import mail
-from django.contrib.auth.tokens import default_token_generator, PasswordResetTokenGenerator
+from django.contrib.auth.tokens import default_token_generator
 
 from .models import *
+from music.models import Music
 from django.test import TestCase
 
 User = get_user_model()
 
 
 class ModelTest(TestCase):
+    """
+    Testing User model.
+    """
 
     @classmethod
     def setUpTestData(cls):
         cls.userdata = {
             'user_id': 'test',
             'username': 'kimtest',
-            'email': 'test@testmail.com',
+            'email': 'test@example.com',
             'password': 'junhyeok'
         }
         User.objects.create(user_id=cls.userdata.get('user_id'), username=cls.userdata.get('username'),
@@ -31,7 +38,7 @@ class ModelTest(TestCase):
         cls.userdata2 = {
             'user_id': 'test2',
             'username': 'leetest',
-            'email': 'test2@testmail.com',
+            'email': 'test2@example.com',
             'password': 'junhyeok'
         }
         User.objects.create(user_id=cls.userdata2.get('user_id'), username=cls.userdata2.get('username'),
@@ -48,12 +55,38 @@ class ModelTest(TestCase):
         self.assertEqual(False, user.is_superuser)
         self.assertEqual(True, user.is_active)
 
-        user_with_email = User.objects.get(email='test@testmail.com')
+        user_with_email = User.objects.get(email='test@example.com')
 
         self.assertEqual('test', user_with_email.get_user_id())
         self.assertEqual(user, user_with_email)
-        self.assertEqual('test@testmail.com', user.get_user_email())
+        self.assertEqual('test@example.com', user.get_user_email())
         self.assertEqual(False, user.is_active is False)
+        self.assertEqual(None, user.is_deleted)
+        self.assertEqual(None, user.verify_code)
+
+    def test_should_make_model(self):
+        another_user = {
+            'user_id': 'test3',
+            'username': 'parktest',
+            'email': 'test3@example.com',
+            'password': 'junhyeok',
+        }
+        User.objects.create_user(user_id=another_user.get('user_id'), username=another_user.get('username'),
+                                 email=another_user.get('email'), password=another_user.get('password'))
+
+        self.assertIsNotNone(User.objects.get(user_id='test3'))
+        self.assertEqual('test3', User.objects.get(user_id='test3').user_id)
+        self.assertEqual('parktest', User.objects.get(user_id='test3').username)
+        self.assertEqual('test3@example.com', User.objects.get(user_id='test3').email)
+        self.assertEqual(True, User.objects.get(user_id='test3').is_active)
+        self.assertIsNone(User.objects.get(user_id='test3').is_deleted)
+
+    def test_change_user_model_isActive(self):
+        user = User.objects.get(user_id='test')
+        user.is_active = False
+        self.assertEqual(False, user.is_active)
+        user.is_active = True
+        self.assertEqual(True, user.is_active)
 
     def test_follow_model_test(self):
         user1 = User.objects.get(user_id='test')
@@ -69,7 +102,7 @@ class ModelTest(TestCase):
         another_user = {
             'user_id': 'test3',
             'username': 'parktest',
-            'email': 'test3@testmail.com',
+            'email': 'test3@example.com',
             'password': 'junhyeok'
         }
         User.objects.create_user(user_id=another_user.get('user_id'), username=another_user.get('username'),
@@ -96,22 +129,46 @@ class ModelTest(TestCase):
         serializer = UserProfileSerializer(followers, many=True)
 
         expect_result = OrderedDict([('profile_image', None), ('user_id', 'test'), ('username', 'kimtest'),
-                                     ('email', 'test@testmail.com'), ('followers_count', 1), ('following_count', 2)])
+                                     ('email', 'test@example.com'), ('followers_count', 1), ('following_count', 2),
+                                     ('is_private', False)])
 
         self.assertEqual([expect_result], serializer.data)
+
+    def test_profile_image_model(self):
+        """
+        location of media directory: ...\record-music-backend\backend\backend\media
+        """
+        user = User.objects.get(user_id='test')
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
+
+        self.assertIsNotNone(ProfileImage.objects.all())
+        self.assertEqual('test', image_model.creator.user_id)
+        self.assertIsNotNone(user.profileimage_set.all())
+        self.assertEqual(1, ProfileImage.objects.first().id)
 
     def test_upload_musicmaps(self):
         pass
 
 
-class ViewTest(APITestCase):
+class BaseUserAccountViewTest(APITestCase):
+    """
+    Testing the implemented User API.
+
+    Check the response data of User API.
+    """
 
     @classmethod
     def setUpTestData(cls):
         cls.userdata = {
             'user_id': 'test',
             'username': 'kimtest',
-            'email': 'test@testmail.com',
+            'email': 'test@example.com',
             'password': 'junhyeok'
         }
         User.objects.create_user(user_id=cls.userdata.get('user_id'), username=cls.userdata.get('username'),
@@ -120,7 +177,7 @@ class ViewTest(APITestCase):
         cls.userdata2 = {
             'user_id': 'test2',
             'username': 'leetest',
-            'email': 'test2@testmail.com',
+            'email': 'test2@example.com',
             'password': 'junhyeok'
         }
         User.objects.create_user(user_id=cls.userdata2.get('user_id'), username=cls.userdata2.get('username'),
@@ -129,27 +186,20 @@ class ViewTest(APITestCase):
     def test_isTestUserInDB(self):
         self.assertEqual('test', User.objects.get(user_id='test').user_id)
 
-    def test_change_isActive(self):
-        user = User.objects.get(user_id='test')
-        user.is_active = False
-        self.assertEqual(False, user.is_active)
-        user.is_active = True
-        self.assertEqual(True, user.is_active)
-
     def test_register_and_login(self):
         register_data = {
             'user_id': 'test3',
             'username': 'leetest',
-            'email': 'test3@testmail.com',
+            'email': 'test3@example.com',
             'password': 'junhyeok'
         }
         register_response = self.client.post('/accounts/register/', register_data)
 
         self.assertEqual({'detail': 'Verification Email Sent.'}, register_response.data)
-        self.assertEqual(register_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(register_response.status_code, status.HTTP_200_OK)
 
         login_data = {
-            'email': 'test3@testmail.com',
+            'email': 'test3@example.com',
             'password': 'junhyeok'
         }
         login_response = self.client.post('/accounts/login/', login_data)
@@ -213,7 +263,7 @@ class ViewTest(APITestCase):
         client.force_authenticate(user=User.objects.get(user_id='test'))
 
         User.objects.create_user(user_id='test3', username='ParkTest',
-                                 email='test3@testmail.com', password='junhyeok')
+                                 email='test3@example.com', password='junhyeok')
 
         client.post('/accounts/test2/follow/', None)
         client.post('/accounts/test3/follow/', None)
@@ -223,9 +273,11 @@ class ViewTest(APITestCase):
 
         expect_result_1, expect_result_2 = \
             OrderedDict([('profile_image', None), ('user_id', 'test2'), ('username', 'leetest'),
-                         ('email', 'test2@testmail.com'), ('followers_count', 1), ('following_count', 0)]), \
+                         ('email', 'test2@example.com'), ('followers_count', 1), ('following_count', 0),
+                         ('is_private', False)]), \
             OrderedDict([('profile_image', None), ('user_id', 'test3'), ('username', 'ParkTest'),
-                         ('email', 'test3@testmail.com'), ('followers_count', 1), ('following_count', 0)])
+                         ('email', 'test3@example.com'), ('followers_count', 1), ('following_count', 0),
+                         ('is_private', False)])
 
         self.assertEqual([expect_result_1, expect_result_2], response.data)
         self.assertEqual(2, Follow.objects.all().count())
@@ -235,32 +287,192 @@ class ViewTest(APITestCase):
 
         response = client.get('/accounts/test/following/')
         expect_result = OrderedDict([('profile_image', None), ('user_id', 'test2'), ('username', 'leetest'),
-                                     ('email', 'test2@testmail.com'), ('followers_count', 1), ('following_count', 0)])
+                                     ('email', 'test2@example.com'), ('followers_count', 1), ('following_count', 0),
+                                     ('is_private', False)])
 
         self.assertEqual([expect_result], response.data)
         self.assertEqual(1, Follow.objects.all().count())
         self.assertEqual(1, user.following_count)
 
-    def test_send_email(self):
-        mail.send_mail('Subject here',
-                       'Here is the message.',
-                       'from@example.com',
-                       ['to@example.com'],
-                       fail_silently=False)
-
-        assert len(mail.outbox) == 1, "Inbox is not empty."
-        assert mail.outbox[0].subject == 'Subject here'
-        assert mail.outbox[0].body == 'Here is the message.'
-        assert mail.outbox[0].from_email == 'from@example.com'
-        assert mail.outbox[0].to == ['to@example.com']
-
-    def test_should_make_uidb64_and_token(self):
+    def test_verify_user_token(self):
         user = User.objects.get(user_id='test')
-        uidb64 = urlsafe_base64_encode(force_bytes(user.user_pk))
-        self.assertIsNotNone(uidb64)
+        client = APIClient()
+        client.force_authenticate(user=User.objects.get(user_id='test'))
 
-        token = default_token_generator.make_token(user)
-        self.assertIsNotNone(token)
+        encode_payload = custom_jwt_payload_handler(user)
+        access_token = jwt_encode_handler(encode_payload)
+        data = {
+            'token': access_token
+        }
+        response = client.post('/accounts/verify/', data)
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual('test', response.data.get('user').get('user_id'))
+
+    def test_refresh_user_token(self):
+        user = User.objects.get(user_id='test')
+        client = APIClient()
+        client.force_authenticate(user=User.objects.get(user_id='test'))
+
+        encode_payload = custom_jwt_payload_handler(user)
+        access_token = jwt_encode_handler(encode_payload)
+        data = {
+            'token': access_token
+        }
+        response = client.post('/accounts/refresh/', data)
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual('test', response.data.get('user').get('user_id'))
+
+    def test_should_update_user_profile(self):
+        client = APIClient()
+        user = User.objects.get(user_id='test')
+        client.force_authenticate(user=user)
+
+        data_email_change = {
+            'email': 'junny@example.com'
+        }
+        response = client.put('/accounts/test/profile/', data_email_change)
+
+        self.assertEqual('junny@example.com', response.data.get('user').get('email'))
+
+        data_username_change = {
+            'username': 'Lee Hyeok-Jun'
+        }
+        client.put('/accounts/test/profile/', data_username_change)
+        response = client.get('/accounts/test/profile/')
+
+        self.assertEqual('Lee Hyeok-Jun', response.data.get('username'))
+
+        data_multiple_change = {
+            'email': 'junny@example.com',
+            'username': 'Lee Hyeok-Jun'
+        }
+        client.put('/accounts/test/profile/', data_multiple_change)
+        response = client.get('/accounts/test/profile/')
+
+        self.assertEqual('junny@example.com', response.data.get('email'))
+        self.assertEqual('Lee Hyeok-Jun', response.data.get('username'))
+
+        data_userid_change_same = {
+            'user_id': 'test2'
+        }
+        response = client.put('/accounts/test/profile/', data_userid_change_same)
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+
+        data_password_change = {
+            'password': 'jhlee0210'
+        }
+        client.put('/accounts/test/profile/', data_password_change)
+        user = User.objects.get(user_id='test')
+
+        self.assertEqual(True, user.check_password('jhlee0210'))
+
+    def test_user_deactivate(self):
+        client = APIClient()
+        user = User.objects.get(user_id='test')
+        client.force_authenticate(user=user)
+
+        response = client.delete('/accounts/test/profile/')
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+
+        user = User.objects.get(user_id='test')
+        self.assertEqual(False, user.is_active)
+        self.assertIsNotNone(user.is_deleted)
+
+        response = client.delete('/accounts/test2/profile/')
+        self.assertEqual(status.HTTP_401_UNAUTHORIZED, response.status_code)
+
+        response = client.delete('/accounts/bnbong/profile/')
+        self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
+
+    def test_profile_image(self):
+        client = APIClient()
+        user = User.objects.get(user_id='test')
+        client.force_authenticate(user=user)
+
+        response = client.get('/accounts/test/profile/profileimage/')
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual([], response.data)
+
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage1.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
+
+        response = client.get('/accounts/test/profile/profileimage/')
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertIsNot([], response.data)
+
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage2.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
+
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage3.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
+
+        request = {
+            'file': None
+        }
+
+        response = client.post('/accounts/test/profile/profileimage/', request)
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual({'isSuccess': True}, response.data)
+
+        request = {
+            'id': 1
+        }
+
+        response = client.put('/accounts/test/profile/profileimage/', request)
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual({'isSuccess': True}, response.data)
+        self.assertIsNotNone(user.profile_image)
+
+        request = {
+            'id': 1
+        }
+
+        response = client.delete('/accounts/test/profile/profileimage/', request)
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(2, ProfileImage.objects.first().id)
+        self.assertEqual(None, client.get('/accounts/test/profile/').data.get('profile_image'))
+
+
+class SubUserAccountViewTest(TestCase):
+    """
+    Testing the functions implemented in the User API that work in an auxiliary manner.
+
+    Check every single sub functions result that do not appear as response in user API,
+    such as how long a user account has been disabled, a body of email, etc...
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.userdata = {
+            'user_id': 'test',
+            'username': 'kimtest',
+            'email': 'test@example.com',
+            'password': 'junhyeok'
+        }
+        User.objects.create_user(user_id=cls.userdata.get('user_id'), username=cls.userdata.get('username'),
+                                 email=cls.userdata.get('email'), password=cls.userdata.get('password'))
 
     def test_check_current_domain(self):
         from django.test.client import RequestFactory
@@ -271,31 +483,40 @@ class ViewTest(APITestCase):
 
         self.assertEqual('http://127.0.0.1', get_request._current_scheme_host)
 
+    def test_email_send(self):
+        mail.send_mail('Subject here',
+                       'Here is the message.',
+                       'from@example.com',
+                       ['to@example.com'],
+                       fail_silently=False)
+
+        self.assertEqual(1, len(mail.outbox))
+        self.assertEqual('Subject here', mail.outbox[0].subject)
+        self.assertEqual('Here is the message.', mail.outbox[0].body)
+        self.assertEqual('from@example.com', mail.outbox[0].from_email)
+        self.assertEqual(['to@example.com'], mail.outbox[0].to)
+
     def test_send_verification_email(self):
         user = User.objects.get(user_id='test')
         request = {
             'user_id': 'test3',
             'username': 'leetest',
-            'email': 'test3@testmail.com',
+            'email': 'test3@example.com',
             'password': 'junhyeok'
         }
-        uidb64 = urlsafe_base64_encode(force_bytes(user.user_pk))
-        token = default_token_generator.make_token(user=user)  # One-time token for account authentication
+        code = get_random_string(length=5)
 
-        def message(domain, uidb64, token, link):
-            activation_link = f"{link}/{uidb64}/{token}"
-            return f"아래 링크를 클릭하면 회원 인증이 완료됩니다.\n\n" \
-                   f"회원 인증 완료 링크 : {activation_link}\n\n감사합니다."
+        def message(domain, code):
+            return f"아래 계정 확인 코드를 입력하면 회원 인증이 완료됩니다.\n\n" \
+                   f"계정 확인 코드 : {code}\n\n감사합니다."
 
-            # should change localhost domain to {domain} after register record-music domain
-            # return f"아래 링크를 클릭하면 회원 인증이 완료됩니다.\n\n" \
-            #                    f"회원 인증 완료 링크 : http://{domain}/accounts/register/activate/{uidb64}/{token}\n\n 감사합니다."
+        self.assertEqual(f"아래 계정 확인 코드를 입력하면 회원 인증이 완료됩니다.\n\n계정 확인 코드 : {code}\n\n감사합니다."
+                         , message(None, code))
 
-        self.assertEqual(f"아래 링크를 클릭하면 회원 인증이 완료됩니다."
-                         f"\n\n회원 인증 완료 링크 : http://127.0.0.1:9080/accounts/register/activate/{uidb64}/{token}\n\n감사합니다."
-                         , message(None, uidb64, token, 'http://127.0.0.1:9080/accounts/register/activate'))
-        self.assertEqual(None, send_verification_email(request, user, user.email,
-                                                       'http://127.0.0.1:9080/accounts/register/activate'))
+        result1, result2 = send_verification_email(request, code)
+
+        self.assertEqual(5, len(result1))
+        self.assertEqual(datetime.today().day, result2.day)
 
     def test_jwt_encoding_and_authentication_check(self):
         user = User.objects.get(user_id='test')
@@ -318,7 +539,9 @@ class ViewTest(APITestCase):
         self.assertEqual(False,
                          (default_token_generator._num_days(not_over_day) - ts) > settings.PASSWORD_RESET_TIMEOUT_DAYS)
 
-        y, m, d = 2021, default_token_generator._today().month, default_token_generator._today().day + 3
+        y, m, d = default_token_generator._today().year, default_token_generator._today().month, \
+                  default_token_generator._today().day + 3
+
         over_day = date(y, m, d)
 
         self.assertEqual(True,
@@ -342,64 +565,442 @@ class ViewTest(APITestCase):
 
         self.assertEqual('http://localhost:9080/accounts/sociallogin/google/redirect/', uri)
 
-    def test_should_update_user_profile(self):
+    def test_serializer_valid_data(self):
+        user = User.objects.get(user_id='test')
+        request = {
+            'is_active': False,
+            'is_deleted': timezone.now(),
+            'password': 'test123'
+        }
+        serializer = UserChangeProfileSerializer(user, data=request, partial=True)
+
+        if serializer.is_valid():
+            serializer.update(validated_data=serializer.validated_data, instance=user)
+
+        self.assertEqual(True, serializer.is_valid())
+        self.assertIsNotNone(serializer.validated_data)
+        self.assertEqual('test123', serializer.validated_data.get('password'))
+
+    def test_change_profile_image_and_upload(self):
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage", image)
+        user = User.objects.get(user_id='test')
+        user.profile_image = image_model.file
+        user.save()
+
+        self.assertIsNotNone(user.profile_image)
+
+    def test_upload_image_into_model(self):
+        """
+        Calls Permission denied [Error no. 13], and I cannot find solution of this.
+        Tried to find a solution for three days, but I failed :(
+        """
+
+        # image_model = ProfileImage()
+
+        """
+        Error occurs in next line.
+        """
+        # image_model.file = SimpleUploadedFile(name='test_image.jpg', content=open(os.path.join(settings.MEDIA_ROOT), 'rb').read(),
+        #                                       content_type='image/jpeg')
+        # image_model.creator = User.objects.get(user_id='test')
+        # image_model.save()
+        #
+        # self.assertIsNotNone(ProfileImage.objects.all())
+        # self.assertEqual('test', image_model.creator.user_id)
+        pass
+
+    def test_check_profile_image(self):
+        """
+        If this test case is run individually, it pass successfully.
+        I couldn't find a reason for this.
+        """
         client = APIClient()
         user = User.objects.get(user_id='test')
         client.force_authenticate(user=user)
 
-        data_email_change = {
-            'email': 'junny@test.com'
+        image_model = ProfileImage()
+        image = ImageFile(open(
+            r'C:\WorkStationFiles\record-music-backend-main\record-music-backend\backend\backend\media\TEST-IMAGE.jpg',
+            'rb'))
+        image_model.file.save("testimage1.jpg", image)
+        image_model.creator = User.objects.get(user_id='test')
+        image_model.save()
+
+        user.profile_image = ProfileImage.objects.get(id=1).file
+        user.save()
+
+        self.assertIsNotNone(user.profile_image)
+
+        instance = ProfileImage.objects.get(id=1)
+        self.assertEqual(True, instance.file == user.profile_image)
+
+    def test_random_string_generator(self):
+        """
+        This string will be used in email account verification at register
+        """
+        token = get_random_string(length=5)
+
+        self.assertEqual(5, len(token))
+
+        time = datetime.now()
+        nexttime = datetime.now() + timedelta(days=1)
+
+        self.assertEqual(True, (nexttime - time).days == settings.PASSWORD_RESET_TIMEOUT_DAYS)
+
+    def test_should_save_verification_data(self):
+        user = User.objects.get(user_id='test')
+        code = get_random_string(length=5)
+        today = datetime.now()
+        user.verify_code = f'{code},{today}'
+        user.save()
+
+        self.assertEqual(code, user.verify_code.split(',')[0])
+        self.assertEqual(str(today), user.verify_code.split(',')[1])
+
+        date = datetime(2021, 1, 1)
+        user.verify_code = f'{code},{date}'
+        user.save()
+
+        saved_date = user.verify_code.split(',')[1]
+        saved_date = datetime.strptime(saved_date, "%Y-%m-%d %H:%M:%S")
+        passed_time = (datetime.now() - saved_date).days
+
+        self.assertEqual(True, passed_time >= 1)
+        self.assertEqual(int, type(passed_time))
+
+
+class UserAccountFailTest(TestCase):
+    """
+    Checking the fail response(status which starts with 4__) of implemented User API.
+
+    The name of the test case will start with 'cannot ~'.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.userdata = {
+            'user_id': 'test',
+            'username': 'kimtest',
+            'email': 'test@example.com',
+            'password': 'junhyeok'
         }
-        response = client.put('/accounts/test/profile/', data_email_change)
+        User.objects.create_user(user_id=cls.userdata.get('user_id'), username=cls.userdata.get('username'),
+                                 email=cls.userdata.get('email'), password=cls.userdata.get('password'))
 
-        self.assertEqual('junny@test.com', response.data.get('user').get('email'))
-
-        data_username_change = {
-            'username': 'Lee Hyeok-Jun'
+        cls.userdata2 = {
+            'user_id': 'test2',
+            'username': 'leetest',
+            'email': 'test2@example.com',
+            'password': 'junhyeok'
         }
-        client.put('/accounts/test/profile/', data_username_change)
-        response = client.get('/accounts/test/profile/')
+        User.objects.create_user(user_id=cls.userdata2.get('user_id'), username=cls.userdata2.get('username'),
+                                 email=cls.userdata2.get('email'), password=cls.userdata2.get('password'))
 
-        self.assertEqual('Lee Hyeok-Jun', response.data.get('username'))
+    def test_cannot_verify_unknown_user_token(self):
+        client = APIClient()
+        user = User.objects.get(user_id='test')
+        client.force_authenticate(user=user)
 
-        data_multiple_change = {
-            'email': 'junny@test.com',
-            'username': 'Lee Hyeok-Jun'
+        payload = {
+            'user_pk': 2,
+            'user_id': 'test2',
+            'exp': datetime.utcnow() + api_settings.JWT_EXPIRATION_DELTA,
+            "email": "test2@example.com",
+            "orig_iat": timegm(datetime.utcnow().utctimetuple())
         }
-        client.put('/accounts/test/profile/', data_multiple_change)
-        response = client.get('/accounts/test/profile/')
 
-        self.assertEqual('junny@test.com', response.data.get('email'))
-        self.assertEqual('Lee Hyeok-Jun', response.data.get('username'))
-
-        data_userid_change_same = {
-            'user_id': 'test2'
+        other_user_token = jwt_encode_handler(payload)
+        data = {
+            'token': other_user_token
         }
-        response = client.put('/accounts/test/profile/', data_userid_change_same)
+        response = client.post('/accounts/verify/', data)
+
+        # Cannot verify other user's token
+        self.assertEqual(status.HTTP_401_UNAUTHORIZED, response.status_code)
+        self.assertEqual({'detail': 'User mismatch.'}, response.data)
+
+        payload = {
+            'user_pk': 10,
+            'user_id': 'admin',
+            'exp': datetime.utcnow() + api_settings.JWT_EXPIRATION_DELTA,
+            "email": "admin@admin.com",
+            "orig_iat": timegm(datetime.utcnow().utctimetuple())
+        }
+
+        fake_token = jwt_encode_handler(payload)
+        data = {
+            'token': fake_token
+        }
+        response = client.post('/accounts/verify/', data)
+
+        # Cannot verify unknown user's token
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+        self.assertEqual([ErrorDetail(string='User Does not exist.', code='invalid')], response.data)
 
-        data_password_change = {
-            'password': 'jhlee0210'
+        payload = {
+            'user_pk': 1,
+            'user_id': 'test',
+            'exp': datetime.utcnow() + api_settings.JWT_EXPIRATION_DELTA,
+            "email": "test@example.com",
+            "orig_iat": timegm(datetime.utcnow().utctimetuple())
         }
-        client.put('/accounts/test/profile/', data_password_change)
+        user_token = jwt_encode_handler(payload)
+        response = client.post('/accounts/verify/', user_token)
+
+        # Invalid request input occurs.
+        self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
+        self.assertEqual({'detail': 'No user found, cannot verify token.'}, response.data)
+
+    def test_cannot_refresh_unknown_user_token(self):
+        client = APIClient()
         user = User.objects.get(user_id='test')
+        client.force_authenticate(user=user)
 
-        self.assertEqual(True, user.check_password('jhlee0210'))
+        payload = {
+            'user_pk': 2,
+            'user_id': 'test2',
+            'exp': datetime.utcnow() + api_settings.JWT_EXPIRATION_DELTA,
+            "email": "test2@example.com",
+            "orig_iat": timegm(datetime.utcnow().utctimetuple())
+        }
 
-    def test_check_user_and_token_over_exp_limit_day(self):
+        other_user_token = jwt_encode_handler(payload)
+        data = {
+            'token': other_user_token
+        }
+        response = client.post('/accounts/refresh/', data)
+
+        # Cannot refresh other user's token
+        self.assertEqual(status.HTTP_401_UNAUTHORIZED, response.status_code)
+        self.assertEqual({'detail': 'User mismatch.'}, response.data)
+
+        payload = {
+            'user_pk': 10,
+            'user_id': 'admin',
+            'exp': datetime.utcnow() + api_settings.JWT_EXPIRATION_DELTA,
+            "email": "admin@admin.com",
+            "orig_iat": timegm(datetime.utcnow().utctimetuple())
+        }
+
+        fake_token = jwt_encode_handler(payload)
+        data = {
+            'token': fake_token
+        }
+        response = client.post('/accounts/refresh/', data)
+
+        # Cannot refresh unknown user's token
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+        self.assertEqual([ErrorDetail(string='User Does not exist.', code='invalid')], response.data)
+
+        payload = {
+            'user_pk': 1,
+            'user_id': 'test',
+            'exp': datetime.utcnow() + api_settings.JWT_EXPIRATION_DELTA,
+            "email": "test@example.com",
+            "orig_iat": timegm(datetime.utcnow().utctimetuple())
+        }
+        user_token = jwt_encode_handler(payload)
+        response = client.post('/accounts/refresh/', user_token)
+
+        # Invalid request input occurs.
+        self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
+        self.assertEqual({'detail': 'No user found, cannot refresh token.'}, response.data)
+
+    def test_cannot_follow_and_unfollow_myself(self):
+        client = APIClient()
         user = User.objects.get(user_id='test')
-        uidb64 = urlsafe_base64_encode(force_bytes(user.user_pk))
-        token = default_token_generator.make_token(user=user)
+        client.force_authenticate(user=user)
 
-        response = self.client.get(f'/accounts/checkuser/redirect/{uidb64}/{token}')
+        response = client.post('/accounts/test/follow/', )
 
-        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        # Cannot follow myself.
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+        self.assertEqual({'isSuccess': False}, response.data)
 
-        class DefTokenGen(PasswordResetTokenGenerator):
+        response = client.put('/accounts/test/unfollow/', )
 
-            def _today(self):
-                return date.today() + timedelta(days=10)
+        # Cannot unfollow myself.
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+        self.assertEqual({'isSuccess': False}, response.data)
 
-        token_generator = DefTokenGen()
+    def test_cannot_follow_and_unfollow_deactivated_user(self):
+        user = User.objects.get(user_id='test2')
+        user.is_active = False
+        user.is_deleted = timezone.now()
+        user.save()
 
-        self.assertFalse(token_generator.check_token(user, token))
+        client = APIClient()
+        user = User.objects.get(user_id='test')
+        client.force_authenticate(user=user)
+
+        response = client.post('/accounts/test2/follow/')
+
+        # Cannot follow disabled user.
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+        self.assertEqual({'isSuccess': False}, response.data)
+
+        response = client.put('/accounts/test2/unfollow/')
+
+        # Cannot unfollow disabled user.
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+        self.assertEqual({'isSuccess': False}, response.data)
+
+    def test_cannot_login_deactivated_user(self):
+        another_user = {
+            'user_id': 'test3',
+            'username': 'parktest',
+            'email': 'test3@example.com',
+            'password': 'junhyeok',
+        }
+        User.objects.create_user(user_id=another_user.get('user_id'), username=another_user.get('username'),
+                                 email=another_user.get('email'), password=another_user.get('password'))
+        user = User.objects.get(user_id='test3')
+        user.is_active = False
+        user.is_deleted = timezone.now()
+        user.save()
+
+        login_data = {
+            'email': user.email,
+            'password': 'junhyeok'
+        }
+        response = self.client.post('/accounts/login/', login_data)
+
+        # Cannot login disabled user.
+        self.assertEqual(status.HTTP_401_UNAUTHORIZED, response.status_code)
+        self.assertEqual({'detail': 'This account is a withdrawn account.'}, response.data)
+
+    def test_cannot_get_and_put_disabled_account_profile(self):
+        another_user = {
+            'user_id': 'test3',
+            'username': 'parktest',
+            'email': 'test3@example.com',
+            'password': 'junhyeok',
+        }
+        User.objects.create_user(user_id=another_user.get('user_id'), username=another_user.get('username'),
+                                 email=another_user.get('email'), password=another_user.get('password'))
+        user = User.objects.get(user_id='test3')
+        user.is_active = False
+        user.is_deleted = timezone.now()
+        user.save()
+
+        client = APIClient()
+        user = User.objects.get(user_id='test')
+        client.force_authenticate(user=user)
+
+        response = client.get('/accounts/test3/profile/')
+
+        # Cannot get disabled user profile.
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+        self.assertEqual({"detail": "Cannot get disabled account."}, response.data)
+
+        data = {
+            'username': 'KimDisabled',
+        }
+        response = client.put('/accounts/test3/profile/', data)
+
+        # Cannot change other user profile.
+        self.assertEqual(status.HTTP_401_UNAUTHORIZED, response.status_code)
+        self.assertEqual({"detail": "User mismatch."}, response.data)
+
+        user = User.objects.get(user_id='test3')
+        client.force_authenticate(user=user)
+
+        data = {
+            'username': 'KimDisabled',
+        }
+        response = client.put('/accounts/test3/profile/', data)
+
+        # Cannot change disabled user profile.
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+        self.assertEqual({"detail": "Cannot modify disabled account."}, response.data)
+
+    def test_cannot_change_password_social_account(self):
+        user = User.objects.get(user_id='test')
+        user.is_social = True
+        user.save()
+
+        client = APIClient()
+        user = User.objects.get(user_id='test')
+        client.force_authenticate(user=user)
+
+        data = {
+            'password': 'test1234'
+        }
+        response = client.put('/accounts/test/profile/', data)
+
+        # Cannot change password social account.
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+        self.assertEqual({'detail': 'Social account cannot change password.'}, response.data)
+
+
+class PlaylistModelTest(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.userdata = {
+            'user_id': 'test',
+            'username': 'kimtest',
+            'email': 'test@example.com',
+            'password': 'junhyeok'
+        }
+        User.objects.create_user(user_id=cls.userdata.get('user_id'), username=cls.userdata.get('username'),
+                                 email=cls.userdata.get('email'), password=cls.userdata.get('password'))
+
+        cls.musicdata_1 = {
+            'artists': 'Sia',
+            'name': 'Chandelier',
+            'yt_song_id': '12345',
+            'cover_image': '...',
+        }
+        cls.musicdata_2 = {
+            'artists': 'Justin Bieber',
+            'name': 'Yummy',
+            'yt_song_id': '67891',
+            'cover_image': '...',
+        }
+        Music.objects.create(artists=cls.musicdata_1.get('artists'),
+                             name=cls.musicdata_1.get('name'),
+                             yt_song_id=cls.musicdata_1.get('yt_song_id'),
+                             cover_image=cls.musicdata_1.get('cover_image'))
+        Music.objects.create(artists=cls.musicdata_2.get('artists'),
+                             name=cls.musicdata_2.get('name'),
+                             yt_song_id=cls.musicdata_2.get('yt_song_id'),
+                             cover_image=cls.musicdata_2.get('cover_image'))
+
+    def test_should_make_model(self):
+        user = User.objects.first()
+        playlist = Playlist.objects.create(user=user)
+        for i in Music.objects.values():
+            playlist.musics.add(i.get('id'))
+            playlist.save()
+        user.playlist.add(playlist)
+        user.save()
+
+        # Check Playlist Created and saved via the user's data.
+        self.assertIsNotNone(user.playlist.all())
+        self.assertIsNotNone(Playlist.objects.values())
+        self.assertIsNotNone(user.playlist.first().musics.all())
+        self.assertEqual('Sia', user.playlist.first().musics.values()[0].get('artists'))
+
+        playlist = Playlist.objects.create(user=user)
+        playlist.musics.add(Music.objects.get(id=1))
+        playlist.save()
+        user.playlist.add(playlist)
+        user.save()
+
+        # Check Multiple Playlist Created.
+        self.assertEqual(2, user.playlist.count())
+        self.assertEqual('Chandelier', user.playlist.get(id=2).musics.values()[0].get('name'))
+
+        data = []
+        from music.serializers import MusicSerializer
+
+        for i in user.playlist.all():
+            serializer = MusicSerializer(i.musics, many=True)
+            data.append(serializer.data)
+
+        # Check Can Serializer Playlists' musics
+        self.assertEqual(2, len(data))

@@ -2,11 +2,14 @@ from django.contrib.auth.models import (
     BaseUserManager, AbstractBaseUser, PermissionsMixin, Permission, _user_get_permissions, _user_has_perm,
     _user_has_module_perms
 )
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.contrib.postgres.fields import ArrayField
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
+
+from backend.settings import MEDIA_ROOT
+from music import models as music_model
 
 
 class UserManager(BaseUserManager):
@@ -114,6 +117,11 @@ class CustomPermissionsMixin(models.Model):
 
 
 class User(AbstractBaseUser, CustomPermissionsMixin):
+
+    # Current profile image
+    profile_image = models.ImageField(
+        null=True, blank=True, upload_to=MEDIA_ROOT
+    )
     email = models.EmailField(
         verbose_name=_('Email address'),
         max_length=255,
@@ -138,14 +146,50 @@ class User(AbstractBaseUser, CustomPermissionsMixin):
         verbose_name=_('Is social account'),
         default=False
     )
+    """
+    Possible Values of 'is_private'
+     - 0 : 전체 공개 (Public)
+     - 1 : 맞팔로워 공개 (Cross-follower public)
+     - 2 : 비공개 (Private)
+    """
+    is_private = models.IntegerField(
+        verbose_name=_('Account Privacy'),
+        default=0,
+        validators=[
+            MaxValueValidator(2),
+            MinValueValidator(0)
+        ]
+    )
     date_joined = models.DateTimeField(
         verbose_name=_('Date joined'),
         default=timezone.now
     )
-    profile_image = ArrayField(
-        models.ImageField(), null=True, blank=True
+    follows = models.ManyToManyField(
+        "self",
+        through="Follow",
+        symmetrical=False
     )
-    follows = models.ManyToManyField("self", through="Follow", symmetrical=False)
+    is_deleted = models.DateTimeField(
+        verbose_name=_('Is deleted'),
+        null=True,
+        blank=True,
+    )
+    verify_code = models.CharField(
+        null=True,
+        max_length=300,
+        default=None,
+    )
+    playlist = models.ManyToManyField(
+        'Playlist',
+        related_name='Music_Playlist',
+        blank=True,
+    )
+    status_message = models.CharField(
+        verbose_name=_('Status Message'),
+        max_length=800,
+        blank=True,
+        null=True,
+    )
 
     objects = UserManager()
 
@@ -193,3 +237,37 @@ class Follow(models.Model):
 
     class Meta:
         db_table = 'follow'
+
+
+class ProfileImage(models.Model):
+    file = models.ImageField(null=True, upload_to=MEDIA_ROOT)
+    creator = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        verbose_name = 'profile_images'
+
+
+class Playlist(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='playlist_owner',
+    )
+    playlist_name = models.CharField(
+        max_length=300,
+        default='Unnamed Playlist',
+    )
+    musics = models.ManyToManyField(
+        music_model.Music,
+        related_name='playlist_musics'
+    )
