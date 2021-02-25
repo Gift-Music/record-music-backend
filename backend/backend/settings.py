@@ -35,6 +35,7 @@ ALLOWED_HOSTS = [
     'web'
     # '.ap-northeast-2.compute.amazonaws.com',
     # '.gift-music.com'
+
 ]
 
 # Application definition
@@ -96,12 +97,19 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
+
+
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
+DB_HOST = [
+    '127.0.0.1',
+    '59.6.25.208'
+]
+
 ELASTICSEARCH_DSL = {
     'default': {
-        'hosts': '59.6.25.208:9200'
+        'hosts': DB_HOST[0] + ':9200'
     },
 }
 
@@ -111,7 +119,7 @@ DATABASES = {
         'NAME': 'recordmusic',
         'USER': 'django',
         'PASSWORD': 'django',
-        'HOST': '59.6.25.208',
+        'HOST': DB_HOST[0],
         'PORT': '5432',
     }
 }

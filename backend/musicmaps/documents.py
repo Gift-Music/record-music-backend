@@ -1,5 +1,8 @@
 from datetime import datetime
-from elasticsearch_dsl import Document, Date, Nested, Boolean, InnerDoc, Text, Integer, GeoPoint
+from elasticsearch_dsl import Document, Date, Nested, Boolean, InnerDoc, Text, Integer, GeoPoint, tokenizer, analyzer
+
+nori = analyzer('nori',
+                tokenizer=tokenizer('nori_token', type='nori_tokenizer', decompound_mode='mixed'))
 
 
 class Comment(InnerDoc):
@@ -12,8 +15,20 @@ class Comment(InnerDoc):
 
 
 class Music(InnerDoc):
-    artists = Text()
-    name = Text()
+    artists = Text(fields={
+        'nori': {
+            'type': 'text',
+            'analyzer': nori,
+            'search_analyzer': 'standard'
+        }
+    })
+    name = Text(fields={
+        'nori': {
+            'type': 'text',
+            'analyzer': nori,
+            'search_analyzer': 'standard'
+        }
+    })
     yt_song_id = Text()
 
 
@@ -28,8 +43,14 @@ class Post(Document):
     playlist = Nested(Music)
     content = Text()
     coordinates = GeoPoint(required=True)
-    street_address = Text(required=True)
-    building_number = Integer(required=True)
+    street_address = Text(required=True, fields={
+        'nori': {
+            'type': 'text',
+            'analyzer': nori,
+            'search_analyzer': 'standard'
+        }
+    })
+    building_number = Integer()
 
     class Index:
         name = 'musicmaps'
@@ -45,6 +66,7 @@ class Post(Document):
         else:
             return 403
 
+
     def update_comment(self, author_id, content, index):
         if self.comments[index].author_id == author_id:
             self.comments[index].content = content
@@ -52,7 +74,7 @@ class Post(Document):
             return 403
 
     def save(self, **kwargs):
-        self.created_at= datetime.now()
+        self.created_at = datetime.now()
         self.last_updated_at = datetime.now()
         return super().save(**kwargs)
 
