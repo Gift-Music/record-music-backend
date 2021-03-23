@@ -121,7 +121,7 @@ def fblogin_redirect(request):
                     "profile_image": serializer.data.get('profile_image'),
                     "user_id": serializer.data.get('user_id'),
                     "email": serializer.data.get('email')
-                    }
+                }
                 }
 
         return Response(data=data, status=status.HTTP_200_OK)
@@ -154,7 +154,7 @@ def fblogin_redirect(request):
                     "profile_image": serializer.data.get('profile_image'),
                     "user_id": serializer.data.get('user_id'),
                     "email": serializer.data.get('email')
-                    }
+                }
                 }
 
         return Response(data=data, status=status.HTTP_201_CREATED)
@@ -166,7 +166,7 @@ def fblogin_redirect(request):
 @permission_classes((permissions.AllowAny,))
 def gglogin(request):
     """
-    Redirect to Facebook account linking
+    Redirect to Google account linking
     """
     app_id = settings.GOOGLE_APP_ID
     redirect_uri = reverse('accounts:google_login_redirect')
@@ -247,7 +247,7 @@ def gglogin_redirect(request):
                     "profile_image": serializer.data.get('profile_image'),
                     "user_id": serializer.data.get('user_id'),
                     "email": serializer.data.get('email')
-                    }
+                }
                 }
 
         return Response(data=data, status=status.HTTP_200_OK)
@@ -290,7 +290,51 @@ def gglogin_redirect(request):
                     "profile_image": serializer.data.get('profile_image'),
                     "user_id": serializer.data.get('user_id'),
                     "email": serializer.data.get('email')
-                    }
+                }
                 }
 
         return Response(data=data, status=status.HTTP_201_CREATED)
+
+
+# ----- SPOTIFY ----- #
+
+@api_view(('GET',))
+@permission_classes((permissions.AllowAny,))
+def splogin(request):
+    app_id = settings.SPOTIFY_APP_ID
+    redirect_uri = reverse('accounts:spotify_login_redirect')
+
+    uri = f'https://accounts.spotify.com/authorize?' \
+          f'&client_id={app_id}' \
+          f'&response_type=code' \
+          f'&redirect_uri=http://127.0.0.1:9080{redirect_uri}'
+    return redirect(uri)
+
+
+@api_view(('GET',))
+@permission_classes((permissions.AllowAny,))
+@renderer_classes((JSONRenderer,))
+def splogin_redirect(request):
+    import base64
+
+    app_id = settings.SPOTIFY_APP_ID
+    app_secret = settings.SPOTIFY_APP_SECRET
+    redirect_uri = reverse('accounts:spotify_login_redirect')
+
+    # improvement: should make exception case here.
+    code = request.GET['code']
+
+    # get access token from redirected url.
+    client_info = f'{app_id}:{app_secret}'
+    encoded_string = client_info.encode('ascii')
+    b64encoded = base64.b64encode(encoded_string)
+
+    header = f'Basic {b64encoded.decode()}'
+
+    uri = requests.post('https://accounts.spotify.com/api/token',
+                        headers={'Authorization': header},
+                        data={
+                            'grant_type': 'authorization_code', 'code': code, 'redirect_uri': f'http://127.0.0.1:9080{redirect_uri}'
+                        })
+
+    return Response(data=uri.json())

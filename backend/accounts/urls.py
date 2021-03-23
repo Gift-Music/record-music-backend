@@ -38,6 +38,10 @@ social_login_urls = [
     path('sociallogin/google/', socialloginview.gglogin, name='google_login'),
     path('sociallogin/google/redirect/', socialloginview.gglogin_redirect, name='google_login_redirect'),
 
+    # Spotify
+    path('sociallogin/spotify/', socialloginview.splogin, name='spotify_login'),
+    path('sociallogin/spotify/redirect/', socialloginview.splogin_redirect, name='spotify_login_redirect'),
+
 ]
 
 urlpatterns += social_login_urls

@@ -672,6 +672,18 @@ class SubUserAccountViewTest(TestCase):
         self.assertEqual(True, passed_time >= 1)
         self.assertEqual(int, type(passed_time))
 
+    def test_b64encode_client(self):
+        import base64
+
+        app_id = settings.SPOTIFY_APP_ID
+        app_secret = settings.SPOTIFY_APP_SECRET
+        string = f'{app_id}:{app_secret}'
+        byte_string = string.encode('ascii')
+        b64encoded = base64.b64encode(byte_string)
+
+        # b64encoded string must be enclude with decoded string. ex) b64encoded.decode()
+        self.assertEqual(type(b64encoded), type(byte_string))
+
 
 class UserAccountFailTest(TestCase):
     """

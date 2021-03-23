@@ -32,10 +32,11 @@ DEBUG = True
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    'web'
+    'web',
+    'digging.cloud',
+    'digging.world',
     # '.ap-northeast-2.compute.amazonaws.com',
     # '.gift-music.com'
-
 ]
 
 # Application definition
@@ -190,6 +191,10 @@ FACEBOOK_APP_SECRET = os.getenv('facebook_app_secret')
 # Owner : Jun-Hyeok Lee(bbbong9@gmail.com), app name : recordmusic, status : test
 GOOGLE_APP_ID = os.getenv('google_app_id')
 GOOGLE_APP_SECRET = os.getenv('google_app_secret')
+
+# Owner : Jun-Hyeok Lee(bbbong9@gmail.com), app name : record music
+SPOTIFY_APP_ID = os.getenv('spotify_app_id')
+SPOTIFY_APP_SECRET = os.getenv('spotify_app_secret')
 
 # EMAIL_BACKEND so allauth can proceed to send confirmation emails
 # ONLY for development/testing use console
